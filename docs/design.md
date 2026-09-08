@@ -301,7 +301,14 @@ failure it is.
 
 ## Settings
 
-Four pages, split by *where* a setting takes effect rather than by what kind of
+Four pages, each a `KCM.SimpleKCM` rather than a bare `Kirigami.FormLayout` —
+that wrapper is what gives a config page its title and its margins, because the
+config dialog instantiates each page with `title` set to the category's name and
+a root with a `title` property picks it up. Plasma's own About and Keyboard
+Shortcuts pages are built the same way; ours started out flush against the top
+with no heading, which is what gave them away as third-party.
+
+They are split by *where* a setting takes effect rather than by what kind of
 thing it is — the same split the widely-used plasmoids arrive at once they have
 both a panel and a popup to configure, and the reason a single "General" page
 stopped working here.
@@ -318,7 +325,9 @@ it, how used the limit has to be before it appears, and whether it colours itsel
 by severity.
 
 **Popup** — how tall it may grow, whether finished sessions are listed, whether
-the usage footer shows, and which rows an expanded session has.
+the usage footer shows, and which rows an expanded session has. Where the branch
+goes is a two-option chooser rather than a checkbox hanging off the Branch tick,
+which read as an afterthought and looked like one.
 
 **Colours** — the six status colours, each with its own revert. Off goes back to
 the built-ins rather than to the last colours picked.

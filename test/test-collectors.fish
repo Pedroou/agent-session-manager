@@ -428,9 +428,19 @@ echo "═══ Tripwire: the real session registry was untouched ═══"
 set -g HOME $REAL_HOME
 set -l leaked (__registry_records $REAL_HOME | string match -r '40[0-9]{2}\.json' | string join ' ')
 check "no sandbox pid was written to the real registry" "" "$leaked"
-check "no real record was deleted" "" (
+# A record going missing is only suspicious if its session is still running.
+# Claude Code removes its own record when a session exits, and sessions exit
+# while this suite runs — the first version of this check flagged that as a leak
+# and failed for a reason that had nothing to do with the code under test.
+check "no live session lost its record" "" (
     for f in (string split ' ' -- "$REAL_BEFORE")
-        test -n "$f"; and not test -e $REAL_HOME/.claude/sessions/$f; and echo $f
+        test -n "$f"; or continue
+        # Both profiles, because the snapshot covers both — looking only in the
+        # work profile reported every personal session as a deleted record.
+        test -e $REAL_HOME/.claude/sessions/$f; and continue
+        test -e $REAL_HOME/.claude-personal/sessions/$f; and continue
+        set -l gone_pid (string replace -r '\.json$' '' -- $f)
+        test -d /proc/$gone_pid; and echo $f
     end | string join ' ')
 
 echo

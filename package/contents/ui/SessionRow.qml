@@ -107,8 +107,13 @@ Item {
             fraction: 1.0
             color: row.tone
             thickness: 3
-            track: headings.implicitHeight
-            Layout.alignment: Qt.AlignVCenter
+            // Stretched to the row rather than measured from any one column.
+            // It used to take its length from the headings, so censoring — which
+            // removes the second line — left the rail visibly short of its own
+            // row. `track: 0` keeps it from claiming height of its own; the
+            // layout gives it whatever the tallest column ends up being.
+            track: 0
+            Layout.fillHeight: true
         }
 
         ColumnLayout {
@@ -262,6 +267,7 @@ Item {
         }
 
         ColumnLayout {
+            id: statusBlock
             spacing: 0
             // Same reasoning as the controls: the status belongs beside the name.
             Layout.alignment: Qt.AlignTop

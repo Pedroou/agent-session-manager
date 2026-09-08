@@ -17,8 +17,8 @@ Rectangle {
 
     implicitWidth: sideways ? extent : thickness
     implicitHeight: sideways ? thickness : extent
-    width: implicitWidth
-    height: implicitHeight
+    // No explicit width/height: assigning them would override any layout that
+    // wants to stretch this, which is exactly what a row rail needs to do.
     radius: thickness / 2
     antialiasing: true
 
