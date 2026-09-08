@@ -4,6 +4,7 @@ import org.kde.plasma.components as PlasmaComponents3
 import org.kde.kirigami as Kirigami
 
 import "../code/usage.js" as Usage
+import "../code/sessions.js" as Sessions
 
 // One plan limit: a track, a fill coloured by how close it is, and the number.
 // When there is nothing to draw, the message takes the whole width — a profile
@@ -14,6 +15,9 @@ RowLayout {
     property var bar
     property string message: ""
     property double now: Date.now()
+    // True when these bars are the last good reading rather than a fresh one.
+    property bool stale: false
+    property double since: 0
 
     readonly property string level: Usage.severity(bar)
     readonly property color fillColor: {
@@ -102,7 +106,19 @@ RowLayout {
             id: percentHover
         }
 
-        PlasmaComponents3.ToolTip.text: usage.bar ? Usage.resetText(usage.bar.resetsAt, usage.now) : ""
+        PlasmaComponents3.ToolTip.text: {
+            if (!usage.bar) {
+                return ""
+            }
+            var text = Usage.resetText(usage.bar.resetsAt, usage.now)
+            if (usage.stale) {
+                var age = Sessions.age(usage.since, usage.now)
+                var note = age ? i18n("couldn't refresh — reading is %1 old", age)
+                              : i18n("couldn't refresh")
+                return text ? text + " · " + note : note
+            }
+            return text
+        }
         PlasmaComponents3.ToolTip.visible: percentHover.hovered
                                            && PlasmaComponents3.ToolTip.text !== ""
         PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay

@@ -117,6 +117,46 @@ function pastThreshold(bar, threshold) {
     return (bar.percent || 0) >= (threshold || 0)
 }
 
+// Carry a profile's last good bars forward when a fetch fails.
+//
+// The endpoint is an undocumented internal and it rate-limits; a 429 or a
+// dropped connection used to blank a bar that was correct a minute ago. Only an
+// `error` is papered over — `absent` and `expired` are real answers about the
+// account, and hiding those behind a stale bar would be a lie rather than a
+// kindness.
+function merge(previous, fresh) {
+    if (!fresh) {
+        return previous
+    }
+    var was = {}
+    var older = (previous && previous.profiles) || []
+    for (var i = 0; i < older.length; i++) {
+        was[older[i].id] = older[i]
+    }
+
+    var out = []
+    var list = fresh.profiles || []
+    for (var j = 0; j < list.length; j++) {
+        var now = list[j]
+        var before = was[now.id]
+        var keepable = now.state === "error"
+            && before && before.state === "ok"
+            && before.bars && before.bars.length
+        if (keepable) {
+            out.push({
+                id: now.id,
+                state: "ok",
+                bars: before.bars,
+                stale: true,
+                since: before.stale ? before.since : (previous ? previous.fetchedAt : 0)
+            })
+        } else {
+            out.push(now)
+        }
+    }
+    return {fetchedAt: fresh.fetchedAt, profiles: out}
+}
+
 // Present only under node; QML ignores it.
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
@@ -127,6 +167,7 @@ if (typeof module !== "undefined" && module.exports) {
         profileById: profileById,
         selectableProfiles: selectableProfiles,
         panelBar: panelBar,
-        pastThreshold: pastThreshold
+        pastThreshold: pastThreshold,
+        merge: merge
     }
 }

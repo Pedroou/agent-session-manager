@@ -108,3 +108,45 @@ test("a bar sitting at zero still clears the always threshold", () => {
     assert.equal(Usage.pastThreshold({percent: 0}, 0), true)
     assert.equal(Usage.pastThreshold({percent: 0}, 25), false)
 })
+
+test("a failed refresh keeps the bars it had, marked stale", () => {
+    const before = {fetchedAt: 1000, profiles: [profile()]}
+    const after = Usage.merge(before, {fetchedAt: 2000, profiles: [profile({state: "error", bars: []})]})
+    const work = Usage.profileById(after, "work")
+    assert.equal(work.state, "ok")
+    assert.equal(work.bars.length, 3)
+    assert.equal(work.stale, true)
+    assert.equal(work.since, 1000, "stale reading dates from when it was actually taken")
+})
+
+test("a stale reading keeps its original timestamp across repeated failures", () => {
+    const before = {fetchedAt: 1000, profiles: [profile()]}
+    const once = Usage.merge(before, {fetchedAt: 2000, profiles: [profile({state: "error", bars: []})]})
+    const twice = Usage.merge(once, {fetchedAt: 3000, profiles: [profile({state: "error", bars: []})]})
+    assert.equal(Usage.profileById(twice, "work").since, 1000)
+})
+
+test("a fresh reading replaces a stale one outright", () => {
+    const stale = Usage.merge({fetchedAt: 1000, profiles: [profile()]},
+                              {fetchedAt: 2000, profiles: [profile({state: "error", bars: []})]})
+    const fresh = Usage.merge(stale, {fetchedAt: 3000, profiles: [profile()]})
+    const work = Usage.profileById(fresh, "work")
+    assert.equal(work.state, "ok")
+    assert.notEqual(work.stale, true)
+})
+
+test("signed out and not signed in are real answers, never papered over", () => {
+    const before = {fetchedAt: 1000, profiles: [profile()]}
+    for (const state of ["expired", "absent"]) {
+        const after = Usage.merge(before, {fetchedAt: 2000, profiles: [profile({state, bars: []})]})
+        const work = Usage.profileById(after, "work")
+        assert.equal(work.state, state, state + " must survive the merge")
+        assert.equal(work.bars.length, 0)
+    }
+})
+
+test("with nothing to fall back on, a failure stays a failure", () => {
+    const after = Usage.merge(null, {fetchedAt: 2000, profiles: [profile({state: "error", bars: []})]})
+    assert.equal(Usage.profileById(after, "work").state, "error")
+    assert.equal(Usage.merge(null, null), null)
+})

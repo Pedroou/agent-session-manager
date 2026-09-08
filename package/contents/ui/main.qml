@@ -5,6 +5,7 @@ import org.kde.plasma.plasma5support as Plasma5Support
 import org.kde.kirigami as Kirigami
 
 import "../code/sessions.js" as Sessions
+import "../code/usage.js" as Usage
 
 PlasmoidItem {
     id: root
@@ -158,7 +159,10 @@ PlasmoidItem {
                 return
             }
             try {
-                root.usage = JSON.parse(stdout)
+                // Merged rather than replaced: a profile that failed this time
+                // keeps the bars it had, so a rate-limited moment does not blank
+                // a reading that was right a minute ago.
+                root.usage = Usage.merge(root.usage, JSON.parse(stdout))
             } catch (e) {
                 // Leave the last good reading on screen rather than blanking it.
             }
@@ -170,19 +174,31 @@ PlasmoidItem {
         return url.replace(/^file:\/\//, "")
     }
 
-    function refreshUsage() {
-        if (!plasmoid.configuration.showUsage) {
+    // The endpoint rate-limits, and plan limits move slowly. Opening the popup
+    // asks for a reading, but no more often than this — otherwise a habit of
+    // opening and closing the widget is enough to get you throttled, and the
+    // punishment lands as an empty bar.
+    readonly property int usageMinGapMs: 60000
+    property double lastUsageFetch: 0
+
+    function refreshUsage(force) {
+        if (!plasmoid.configuration.showUsage && !plasmoid.configuration.panelUsage) {
             return
         }
+        var now = Date.now()
+        if (!force && lastUsageFetch > 0 && (now - lastUsageFetch) < usageMinGapMs) {
+            return
+        }
+        lastUsageFetch = now
         usageSource.connectSource("'" + usagePath.replace(/'/g, "'\\''") + "'")
     }
 
     Timer {
         interval: 5 * 60 * 1000
-        running: plasmoid.configuration.showUsage
+        running: plasmoid.configuration.showUsage || plasmoid.configuration.panelUsage
         repeat: true
         triggeredOnStart: true
-        onTriggered: root.refreshUsage()
+        onTriggered: root.refreshUsage(true)
     }
 
     // Kept apart from the collector so a signal's empty output is never mistaken

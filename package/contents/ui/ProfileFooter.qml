@@ -181,6 +181,8 @@ ColumnLayout {
                     Layout.alignment: Qt.AlignVCenter
                     bar: profileRow.bar
                     message: profileRow.message
+                    stale: profileRow.modelData.stale === true
+                    since: profileRow.modelData.since || 0
                     now: footer.widget ? footer.widget.now : Date.now()
                 }
             }

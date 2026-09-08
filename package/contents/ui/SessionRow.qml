@@ -225,15 +225,24 @@ Item {
         // signal cannot pause a session, only end it, and a button labelled
         // "interrupt" that quietly ended sessions would be worse than none.
         RowLayout {
+            id: controls
             spacing: 0
             // Top, not centre: an expanded row grows downwards, and controls that
             // drift to the middle of the details end up nowhere near the name
             // they act on.
             Layout.alignment: Qt.AlignTop
+            // Capped to what the row is already tall enough for. These buttons
+            // measure 30px against a censored row's 28 — censoring drops the
+            // second line — so appearing on hover used to stretch the row by two
+            // pixels and take the rail with it.
+            Layout.maximumHeight: Math.max(headings.implicitHeight, statusBlock.implicitHeight)
             visible: rowHover.hovered && !row.renaming
 
             PlasmaComponents3.ToolButton {
                 icon.name: "edit-rename"
+                icon.width: Kirigami.Units.iconSizes.small
+                icon.height: Kirigami.Units.iconSizes.small
+                implicitHeight: Kirigami.Units.iconSizes.medium
                 display: PlasmaComponents3.AbstractButton.IconOnly
                 flat: true
                 text: i18n("Rename in this widget")
@@ -246,6 +255,9 @@ Item {
 
             PlasmaComponents3.ToolButton {
                 icon.name: row.confirmingEnd ? "dialog-warning" : "window-close"
+                icon.width: Kirigami.Units.iconSizes.small
+                icon.height: Kirigami.Units.iconSizes.small
+                implicitHeight: Kirigami.Units.iconSizes.medium
                 display: PlasmaComponents3.AbstractButton.IconOnly
                 flat: true
                 icon.color: row.confirmingEnd ? Kirigami.Theme.negativeTextColor : undefined

@@ -118,7 +118,16 @@ that is Session, Weekly and Fable.
 
 This is the only part of the widget that touches the network, so it is the only
 part with an off switch, and it runs on a five-minute timer rather than the
-session poll.
+session poll. Opening the popup also asks for a reading, but no more often than
+once a minute — otherwise a habit of opening and closing the widget is enough to
+get throttled, and the punishment arrives as an empty bar.
+
+When a fetch does fail, the profile keeps the bars it had rather than blanking:
+the endpoint rate-limits, and a reading that was right a minute ago beats no
+reading at all. Only an `error` is carried forward like this. `absent` and
+`expired` are real answers about the account, and hiding those behind a stale bar
+would be a lie rather than a kindness. The percentage's tooltip says how old a
+kept reading is.
 
 ## Architecture
 
