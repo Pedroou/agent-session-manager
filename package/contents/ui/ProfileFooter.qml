@@ -13,6 +13,10 @@ ColumnLayout {
 
     property var widget
 
+    // How much of the popup's width the list's scrollbar is occupying, so the
+    // footer can stop short of it and stay lined up with the rows.
+    property real scrollbarInset: 0
+
     readonly property var usage: widget ? widget.usage : null
     readonly property bool expanded: plasmoid.configuration.usageExpanded
     readonly property string selected: plasmoid.configuration.usageProfile
@@ -102,8 +106,12 @@ ColumnLayout {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: Kirigami.Units.smallSpacing
-                anchors.rightMargin: Kirigami.Units.largeSpacing
+                // Matched to SessionRow's own margins so the footer lines up with
+                // the list above it. The left used to be smallSpacing, which was
+                // an oversight rather than a decision — it left the chevron 4px
+                // adrift of the rails it sits under.
+                anchors.leftMargin: Kirigami.Units.largeSpacing
+                anchors.rightMargin: Kirigami.Units.largeSpacing + footer.scrollbarInset
                 spacing: Kirigami.Units.smallSpacing
 
                 Kirigami.Icon {

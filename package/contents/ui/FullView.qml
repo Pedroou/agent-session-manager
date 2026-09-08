@@ -119,6 +119,7 @@ Item {
         }
 
         PlasmaComponents3.ScrollView {
+            id: scroller
             Layout.fillWidth: true
             Layout.fillHeight: true
             contentWidth: availableWidth
@@ -147,6 +148,11 @@ Item {
             id: footer
             Layout.fillWidth: true
             widget: full.widget
+            // The footer is a sibling of the scroll view, not inside it, so it
+            // spans the strip the scrollbar takes. Without this the usage bar
+            // overhangs the rows above it by the scrollbar's width the moment
+            // the list is long enough to scroll.
+            scrollbarInset: scroller.visible ? scroller.width - scroller.availableWidth : 0
             visible: plasmoid.configuration.showUsage
                      && full.widget && full.widget.usage !== null
         }
