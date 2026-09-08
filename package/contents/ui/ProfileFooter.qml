@@ -18,6 +18,11 @@ ColumnLayout {
     readonly property string selected: plasmoid.configuration.usageProfile
     readonly property var profiles: Usage.selectableProfiles(usage)
 
+    // Both chevrons on a row measure from here. One is a bare icon and the other
+    // is a button's icon, which are sized by different rules — so the size is
+    // stated once rather than twice in units that happen to disagree.
+    readonly property real chevron: Kirigami.Units.iconSizes.small
+
     spacing: 0
 
     function barIdFor(profileId) {
@@ -99,8 +104,8 @@ ColumnLayout {
 
                 Kirigami.Icon {
                     source: footer.expanded ? "go-down-symbolic" : "go-next-symbolic"
-                    implicitWidth: Kirigami.Units.iconSizes.small
-                    implicitHeight: Kirigami.Units.iconSizes.small
+                    implicitWidth: footer.chevron
+                    implicitHeight: footer.chevron
                     opacity: profileRow.isSelected ? 1 : 0
                     Layout.alignment: Qt.AlignVCenter
                 }
@@ -121,6 +126,11 @@ ColumnLayout {
                 // switching to them first.
                 PlasmaComponents3.ToolButton {
                     icon.name: "go-next-symbolic"
+                    // The glyph matches the indicator chevron; the button around
+                    // it stays bigger, because a hit target and a glyph are not
+                    // the same measurement.
+                    icon.width: footer.chevron
+                    icon.height: footer.chevron
                     display: PlasmaComponents3.AbstractButton.IconOnly
                     flat: true
                     enabled: profileRow.modelData.bars.length > 0
