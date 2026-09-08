@@ -231,18 +231,26 @@ Item {
             // drift to the middle of the details end up nowhere near the name
             // they act on.
             Layout.alignment: Qt.AlignTop
-            // Capped to what the row is already tall enough for. These buttons
-            // measure 30px against a censored row's 28 — censoring drops the
-            // second line — so appearing on hover used to stretch the row by two
-            // pixels and take the rail with it.
-            Layout.maximumHeight: Math.max(headings.implicitHeight, statusBlock.implicitHeight)
+            // fillHeight off explicitly. A layout nested in a layout is stretched
+            // by default, and capping it with maximumHeight did not stop that —
+            // it just let the row fill to 90px with the buttons floating in the
+            // middle of it. Off, it takes its own height and the alignment above
+            // finally means something.
+            Layout.fillHeight: false
             visible: rowHover.hovered && !row.renaming
 
             PlasmaComponents3.ToolButton {
                 icon.name: "edit-rename"
                 icon.width: Kirigami.Units.iconSizes.small
                 icon.height: Kirigami.Units.iconSizes.small
-                implicitHeight: Kirigami.Units.iconSizes.medium
+                // Padding, not layout hints. A RowLayout takes its implicit
+                // height from its children's implicit heights, and a Control
+                // derives that from content plus padding — so Layout.preferred
+                // and Layout.minimum were both ignored and the button stayed
+                // 32px, taller than a censored row's 28. Trimming the padding
+                // shrinks the thing the layout is actually reading.
+                padding: Math.round(Kirigami.Units.smallSpacing / 2)
+                Layout.alignment: Qt.AlignTop
                 display: PlasmaComponents3.AbstractButton.IconOnly
                 flat: true
                 text: i18n("Rename in this widget")
@@ -257,7 +265,14 @@ Item {
                 icon.name: row.confirmingEnd ? "dialog-warning" : "window-close"
                 icon.width: Kirigami.Units.iconSizes.small
                 icon.height: Kirigami.Units.iconSizes.small
-                implicitHeight: Kirigami.Units.iconSizes.medium
+                // Padding, not layout hints. A RowLayout takes its implicit
+                // height from its children's implicit heights, and a Control
+                // derives that from content plus padding — so Layout.preferred
+                // and Layout.minimum were both ignored and the button stayed
+                // 32px, taller than a censored row's 28. Trimming the padding
+                // shrinks the thing the layout is actually reading.
+                padding: Math.round(Kirigami.Units.smallSpacing / 2)
+                Layout.alignment: Qt.AlignTop
                 display: PlasmaComponents3.AbstractButton.IconOnly
                 flat: true
                 icon.color: row.confirmingEnd ? Kirigami.Theme.negativeTextColor : undefined
