@@ -191,8 +191,22 @@ PlasmoidItem {
         }
     }
 
-    function copyToClipboard(text) {
+    // What the popup is currently confirming, or "" for nothing. Callers pass the
+    // name of the thing rather than a bare "Copied", because a row has several
+    // copy targets and knowing which one you hit is the whole value of the
+    // confirmation.
+    property string copyNotice: ""
+
+    function copyToClipboard(text, what) {
         clipboard.put(text)
+        copyNotice = (what && what !== "") ? i18n("%1 copied", what) : i18n("Copied")
+        copyNoticeTimer.restart()
+    }
+
+    Timer {
+        id: copyNoticeTimer
+        interval: 1900
+        onTriggered: root.copyNotice = ""
     }
 
     // The collector lives beside this file inside the package, so it is found
@@ -230,6 +244,7 @@ PlasmoidItem {
             refreshUsage()
         } else {
             collapseAll()
+            copyNotice = ""
         }
     }
 }

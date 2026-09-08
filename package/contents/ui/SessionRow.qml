@@ -77,10 +77,15 @@ Item {
             if (mouse.button === Qt.RightButton) {
                 // Collapsed, the useful thing to paste is the way back in.
                 // Expanded, it is everything on screen.
-                row.widget.copyToClipboard(row.detailsOpen
-                    ? Sessions.detailsAsText(row.session, plasmoid.configuration,
-                                             row.now, row.widget.nicknames, row.censored)
-                    : Sessions.resumeCommand(row.session))
+                if (row.detailsOpen) {
+                    row.widget.copyToClipboard(
+                        Sessions.detailsAsText(row.session, plasmoid.configuration,
+                                               row.now, row.widget.nicknames, row.censored),
+                        i18n("Session details"))
+                } else {
+                    row.widget.copyToClipboard(Sessions.resumeCommand(row.session),
+                                               i18n("Resume command"))
+                }
             } else {
                 row.detailsOpen = !row.detailsOpen
             }
@@ -178,7 +183,7 @@ Item {
                         MouseArea {
                             anchors.fill: parent
                             enabled: modelData.copyable
-                            onClicked: row.widget.copyToClipboard(modelData.value)
+                            onClicked: row.widget.copyToClipboard(modelData.value, modelData.key)
                         }
 
                         RowLayout {

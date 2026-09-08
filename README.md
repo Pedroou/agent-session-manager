@@ -58,7 +58,9 @@ because Plasma caches applet QML; `install.fish` prints the command.
 
 **Click a row** for its details — profile, uptime, directory, repository, branch,
 session id, pid, version — and click any value to copy it. **Right-click** copies
-the whole thing, or, closed, the command to get back into that session.
+the whole thing, or, closed, the command to get back into that session. Every
+copy is confirmed by a pill that floats over the list for a moment and names what
+it took, since a row has several things you might have been aiming at.
 **Hovering** gives you a pencil, which sets a nickname the widget remembers, and
 a close button that asks once before ending the session. The **eye** in the
 header blanks every name and path, for screen-sharing.

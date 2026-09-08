@@ -138,6 +138,7 @@ package/
     ui/Rail.qml                  # one bar
     ui/ProfileFooter.qml         # the profile selector
     ui/UsageBar.qml              # one plan limit
+    ui/CopyToast.qml             # the copy confirmation
     ui/ConfigGeneral.qml
     config/{main.xml,config.qml}
     icons/{claude-sessions,reload}.svg
@@ -236,7 +237,15 @@ Claude Code Sessions                    👁  ⟳
 Clicking a row opens its details — Profile, Uptime, Directory, Repository,
 Branch, Session, Process, Version — and clicking any value copies it. Right-
 clicking copies the whole thing when open, and the command to get back into the
-session when closed. Hovering reveals a pencil, which gives the session a
+session when closed.
+
+Every copy is confirmed by a pill that floats over the list for about two
+seconds. It floats rather than sitting in the layout so a copy never reflows the
+popup under the pointer, and it names what it took — "Repository copied",
+"Resume command copied" — because a single row offers half a dozen copy targets
+and a bare "Copied" would leave you guessing which one you hit. It is
+deliberately not a system notification: this is a keystroke-sized action, and
+routing it to the notification centre would bury the messages that matter. Hovering reveals a pencil, which gives the session a
 nickname the widget keeps, and a close button that asks once before ending it.
 The eye in the header blanks every name and path for screen-sharing.
 

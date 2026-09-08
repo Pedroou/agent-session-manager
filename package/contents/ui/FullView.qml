@@ -33,6 +33,15 @@ Item {
                                         : Kirigami.Units.gridUnit * 7)
                                      + footer.implicitHeight)
 
+    CopyToast {
+        notice: full.widget ? full.widget.copyNotice : ""
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        // Clears the usage footer, whatever height it happens to be.
+        anchors.bottomMargin: (footer.visible ? footer.height : 0) + Kirigami.Units.largeSpacing
+        z: 10
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
