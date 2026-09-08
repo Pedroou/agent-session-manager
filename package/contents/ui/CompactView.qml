@@ -26,9 +26,11 @@ MouseArea {
 
     readonly property real thickness: Math.max(2, Math.round(Kirigami.Units.smallSpacing * 0.8))
     readonly property real gap: Math.max(2, Math.round(thickness * 0.9))
+    // One small gap, not two: the bars are the whole point of the panel view, so
+    // they take as much of it as they can without touching the edges.
     readonly property real track: Math.max(Kirigami.Units.iconSizes.small,
                                            (sideways ? compact.width : compact.height)
-                                           - Kirigami.Units.smallSpacing * 2)
+                                           - Kirigami.Units.smallSpacing)
 
     function tone(state) {
         return widget ? widget.tone(state) : Kirigami.Theme.disabledTextColor
@@ -58,10 +60,16 @@ MouseArea {
         }
     }
 
+    // The panel owns one axis and the content owns the other: height in a
+    // horizontal panel, width in a vertical one. Asking the content for a size on
+    // the axis the panel controls would be a loop, because the bars are measured
+    // from that axis — which is what `preferredHeight: compact.height` used to be.
+    Layout.fillWidth: sideways
+    Layout.fillHeight: !sideways
     Layout.minimumWidth: sideways ? 0 : content.implicitWidth
+    Layout.maximumWidth: sideways ? Number.POSITIVE_INFINITY : content.implicitWidth
     Layout.minimumHeight: sideways ? content.implicitHeight : 0
-    Layout.preferredWidth: sideways ? compact.width : content.implicitWidth
-    Layout.preferredHeight: sideways ? content.implicitHeight : compact.height
+    Layout.maximumHeight: sideways ? content.implicitHeight : Number.POSITIVE_INFINITY
 
     GridLayout {
         id: content
