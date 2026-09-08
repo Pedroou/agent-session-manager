@@ -139,7 +139,7 @@ package/
     ui/ProfileFooter.qml         # the profile selector
     ui/UsageBar.qml              # one plan limit
     ui/CopyToast.qml             # the copy confirmation
-    ui/ConfigGeneral.qml
+    ui/Config{General,Panel,Popup,Colours}.qml
     config/{main.xml,config.qml}
     icons/{claude-sessions,reload}.svg
 test/
@@ -249,6 +249,12 @@ routing it to the notification centre would bury the messages that matter. Hover
 nickname the widget keeps, and a close button that asks once before ending it.
 The eye in the header blanks every name and path for screen-sharing.
 
+**The panel's usage strip.** Under the session bars, a thin bar for whichever
+limit the popup's footer is set to, on whichever profile it has selected — the
+same measurement, without the number, because at panel size a percentage is
+unreadable and the point is the glance. It can be held back until the limit is
+some way gone, so it stays out of the way until it means something.
+
 **Motion.** Exactly one thing moves on its own: a working session breathes — the
 rail and its "Working" label together. The label follows the rail's opacity
 rather than running a second animation, because two identical animations started
@@ -285,11 +291,39 @@ for. Doing this properly would mean speaking the peer protocol on
 | A torn or malformed record         | unaffected                | that one record is skipped, the rest still listed         |
 | Profile not signed in              | unaffected                | "Not signed in" in place of its usage bar                 |
 | Token expired                      | unaffected                | "Signed out — run claude to sign back in"                 |
-| Usage API unreachable              | unaffected                | last good reading stays; "Couldn't reach the usage API" if there was none |
+| Usage API unreachable, or rate-limiting | unaffected           | last good reading stays; "Couldn't reach the usage API" if there was none |
+
+A note on that last row, learned the hard way: the endpoint answers a rate-limited
+request with a perfectly valid JSON error object. It has no `limits` key, so it
+parsed as "this plan has no limits" and the widget quietly showed an empty
+footer. `curl --fail` plus a type check on `limits` turns that back into the
+failure it is.
 
 ## Settings
 
-All of it resets from one button at the top of the page.
+Four pages, split by *where* a setting takes effect rather than by what kind of
+thing it is — the same split the widely-used plasmoids arrive at once they have
+both a panel and a popup to configure, and the reason a single "General" page
+stopped working here.
+
+**General** — how often to check, the needs-attention highlight, and the privacy
+toggle that blanks names and paths. Then, last and set apart, one button that
+resets every page. Plasma's applet dialog has no Defaults button of its own, so
+the widget provides it; a control that throws away every setting belongs at the
+end of the first page rather than at the top competing with the settings it would
+discard.
+
+**Panel** — the session count and its size, and the usage strip: whether to show
+it, how used the limit has to be before it appears, and whether it colours itself
+by severity.
+
+**Popup** — how tall it may grow, whether finished sessions are listed, whether
+the usage footer shows, and which rows an expanded session has.
+
+**Colours** — the six status colours, each with its own revert. Off goes back to
+the built-ins rather than to the last colours picked.
+
+All of it resets from one button, at the foot of the General page.
 
 - **Check every** *n* seconds (1–60, default 5) while the popup is closed.
 - **Tallest the popup gets** (8–60 grid units, default 21).

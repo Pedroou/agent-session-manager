@@ -101,6 +101,22 @@ function selectableProfiles(usage) {
     })
 }
 
+// The bar the panel strip tracks: whichever profile the footer has selected, and
+// whichever limit was chosen for it — so the panel and the popup never disagree
+// about what is being measured.
+function panelBar(usage, profileId, barId) {
+    return barFor(profileById(usage, profileId), barId)
+}
+
+// Whether a bar has passed the point at which the panel bothers drawing it.
+// A threshold of 0 means "always", since every percentage clears it.
+function pastThreshold(bar, threshold) {
+    if (!bar) {
+        return false
+    }
+    return (bar.percent || 0) >= (threshold || 0)
+}
+
 // Present only under node; QML ignores it.
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
@@ -109,6 +125,8 @@ if (typeof module !== "undefined" && module.exports) {
         resetText: resetText,
         stateMessage: stateMessage,
         profileById: profileById,
-        selectableProfiles: selectableProfiles
+        selectableProfiles: selectableProfiles,
+        panelBar: panelBar,
+        pastThreshold: pastThreshold
     }
 }

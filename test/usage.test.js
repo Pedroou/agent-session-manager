@@ -86,3 +86,25 @@ test("profiles are found by id and listed in a stable order", () => {
     assert.deepEqual(Usage.selectableProfiles(usage).map(p => p.id), ["work", "personal"])
     assert.deepEqual(Usage.selectableProfiles(null), [])
 })
+
+test("the panel tracks the same profile and limit the popup is set to", () => {
+    const usage = {profiles: [profile(), profile({id: "personal", state: "absent", bars: []})]}
+    assert.equal(Usage.panelBar(usage, "work", "weekly").label, "Weekly")
+    assert.equal(Usage.panelBar(usage, "work", "session").label, "Session")
+    assert.equal(Usage.panelBar(usage, "personal", "session"), null)
+    assert.equal(Usage.panelBar(null, "work", "session"), null)
+})
+
+test("a threshold of zero means always, and a missing bar is never", () => {
+    const bar = {percent: 61}
+    assert.equal(Usage.pastThreshold(bar, 0), true)
+    assert.equal(Usage.pastThreshold(bar, 50), true)
+    assert.equal(Usage.pastThreshold(bar, 61), true)
+    assert.equal(Usage.pastThreshold(bar, 75), false)
+    assert.equal(Usage.pastThreshold(null, 0), false)
+})
+
+test("a bar sitting at zero still clears the always threshold", () => {
+    assert.equal(Usage.pastThreshold({percent: 0}, 0), true)
+    assert.equal(Usage.pastThreshold({percent: 0}, 25), false)
+})

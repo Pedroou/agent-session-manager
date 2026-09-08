@@ -31,6 +31,26 @@
       <label>Show the session count beside the bars in the panel.</label>
       <default>true</default>
     </entry>
+    <entry name="countScale" type="Int">
+      <label>Size of the session count, as a percentage of its natural size.</label>
+      <default>100</default>
+      <min>60</min>
+      <max>200</max>
+    </entry>
+    <entry name="panelUsage" type="Bool">
+      <label>Show a bar under the session bars for the selected plan limit.</label>
+      <default>true</default>
+    </entry>
+    <entry name="panelUsageThreshold" type="Int">
+      <label>Only show that bar once this much of the limit is used; 0 is always.</label>
+      <default>0</default>
+      <min>0</min>
+      <max>95</max>
+    </entry>
+    <entry name="panelUsageColour" type="Bool">
+      <label>Colour that bar by how much of the limit is gone, as the popup does.</label>
+      <default>true</default>
+    </entry>
 
     <!-- Colours. The defaults live in code/sessions.js so the QML and the node
          tests agree on them; these are the same values, since kcfg cannot read

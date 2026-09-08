@@ -68,7 +68,11 @@ header blanks every name and path, for screen-sharing.
 The popup is as tall as its sessions need and no taller, up to a ceiling you set,
 past which it scrolls.
 
-At the bottom, each profile's plan usage. Claude Code supports a second config
+The panel carries a thin usage bar under the session bars for whichever limit
+you have selected — no number, just the bar — and it can be set to stay hidden
+until the limit is actually worth knowing about.
+
+At the bottom of the popup, each profile's plan usage. Claude Code supports a second config
 directory via `CLAUDE_CONFIG_DIR`, so if you run two accounts side by side both
 show up here; the selector picks which one is on screen when it is collapsed, and
 the arrow beside each picks which limit its bar tracks — session, weekly, or a

@@ -31,6 +31,33 @@ PlasmoidItem {
     // collapsed rather than showing whatever was left expanded.
     signal collapseAll()
 
+    // Which sessions are open, and which one is being renamed — keyed by session
+    // id rather than kept inside the row.
+    //
+    // The collector sorts by state, so a session changing status reorders the
+    // list, and a delegate that held its own "expanded" flag would hand it to
+    // whichever session slid into that position. That was rows appearing to
+    // close, or open, on their own whenever anything changed.
+    property var expandedSessions: ({})
+    property string renamingSession: ""
+
+    function isExpanded(sessionId) {
+        return expandedSessions[sessionId] === true
+    }
+
+    function toggleExpanded(sessionId) {
+        var next = {}
+        for (var key in expandedSessions) {
+            next[key] = expandedSessions[key]
+        }
+        if (next[sessionId]) {
+            delete next[sessionId]
+        } else {
+            next[sessionId] = true
+        }
+        expandedSessions = next
+    }
+
     // Status colours are the widget's own, not the theme's: the theme accent is
     // usually blue, which is exactly what disappears into a blue panel. The
     // defaults live in code/sessions.js so the node tests can check them.
@@ -244,6 +271,8 @@ PlasmoidItem {
             refreshUsage()
         } else {
             collapseAll()
+            expandedSessions = ({})
+            renamingSession = ""
             copyNotice = ""
         }
     }

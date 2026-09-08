@@ -407,6 +407,23 @@ check "no bars" 0 (echo $out | jq -r '.profiles[] | select(.id=="work") | .bars 
 set -e CLAUDE_USAGE_FIXTURE
 
 echo
+echo "═══ Task 25: a failed request is an error, not an empty plan ═══"
+setup
+set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
+jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude/.credentials.json
+# What the API actually returns when it rate-limits you. It parses cleanly and
+# has no `limits` key, so without a type check it read as "this plan has no
+# limits" — the widget would quietly show nothing instead of saying it failed.
+echo '{"error": {"type": "rate_limit_error", "message": "rate limited"}}' >$ROOT/usage.json
+set -l out ($USAGE)
+check "an error body is reported as an error" error (echo $out | jq -r '.profiles[] | select(.id=="work") | .state')
+check "and offers no bars" 0 (echo $out | jq -r '.profiles[] | select(.id=="work") | .bars | length')
+echo '{"limits": []}' >$ROOT/usage.json
+set out ($USAGE)
+check "a real but empty limits array is still ok" ok (echo $out | jq -r '.profiles[] | select(.id=="work") | .state')
+set -e CLAUDE_USAGE_FIXTURE
+
+echo
 echo "═══ Tripwire: the real session registry was untouched ═══"
 set -g HOME $REAL_HOME
 set -l leaked (__registry_records $REAL_HOME | string match -r '40[0-9]{2}\.json' | string join ' ')

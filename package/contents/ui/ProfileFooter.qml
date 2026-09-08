@@ -137,7 +137,11 @@ ColumnLayout {
                 // not currently selected, so you can set them up without
                 // switching to them first.
                 PlasmaComponents3.ToolButton {
-                    icon.name: "go-next-symbolic"
+                    // Not another chevron: one arrow already means "this is the
+                    // selected profile", and a second one beside it read as a
+                    // repeat rather than as a different control. An overflow mark
+                    // says "there are options behind this", which is the job.
+                    icon.name: "overflow-menu"
                     // The glyph matches the indicator chevron; the button around
                     // it stays bigger, because a hit target and a glyph are not
                     // the same measurement.

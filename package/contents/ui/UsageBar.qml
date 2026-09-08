@@ -59,16 +59,34 @@ RowLayout {
         }
 
         Rectangle {
+            id: fill
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: parent.width * Math.max(0, Math.min(100, usage.bar ? usage.bar.percent : 0)) / 100
             radius: height / 2
             color: usage.fillColor
 
-            Behavior on width {
-                NumberAnimation { duration: Kirigami.Units.longDuration }
+            // The animation is on the *fraction*, not on the width in pixels.
+            // Animating width conflates two different events: the value changing,
+            // which should slide, and the track being laid out or resized, which
+            // should not. That was the double-take on opening — the bar drew at
+            // its real width, the layout pass then moved the track, and the
+            // Behavior replayed the whole fill from empty.
+            property real portion: 0
+            width: parent.width * portion
+
+            Behavior on portion {
+                NumberAnimation {
+                    duration: Kirigami.Units.longDuration
+                    easing.type: Easing.OutCubic
+                }
             }
+
+            // Bound after creation so the first reading animates in from empty
+            // rather than snapping, and every reading after that slides.
+            Component.onCompleted: fill.portion = Qt.binding(function () {
+                return Math.max(0, Math.min(100, usage.bar ? usage.bar.percent : 0)) / 100
+            })
         }
     }
 

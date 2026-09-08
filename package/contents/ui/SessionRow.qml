@@ -13,8 +13,10 @@ Item {
     property var session
     property var widget
     property bool showProfile: false
-    property bool detailsOpen: false
-    property bool renaming: false
+    // Held by the widget, keyed by session id, so re-sorting the list cannot
+    // move an open row's state onto a different session.
+    readonly property bool detailsOpen: widget ? widget.isExpanded(session.sessionId) : false
+    readonly property bool renaming: widget ? widget.renamingSession === session.sessionId : false
     // Ending a session is one click away from losing what it was doing, so the
     // button asks once. The timer puts it back if the answer never comes.
     property bool confirmingEnd: false
@@ -32,8 +34,6 @@ Item {
     Connections {
         target: row.widget
         function onCollapseAll() {
-            row.detailsOpen = false
-            row.renaming = false
             row.confirmingEnd = false
         }
     }
@@ -87,7 +87,7 @@ Item {
                                                i18n("Resume command"))
                 }
             } else {
-                row.detailsOpen = !row.detailsOpen
+                row.widget.toggleExpanded(row.session.sessionId)
             }
         }
     }
@@ -114,7 +114,7 @@ Item {
         ColumnLayout {
             id: headings
             Layout.fillWidth: true
-            Layout.alignment: Qt.AlignVCenter
+            Layout.alignment: Qt.AlignTop
             spacing: 0
 
             PlasmaComponents3.Label {
@@ -132,9 +132,9 @@ Item {
                 placeholderText: row.session.name
                 onAccepted: {
                     row.widget.setNickname(row.session.sessionId, text.trim())
-                    row.renaming = false
+                    row.widget.renamingSession = ""
                 }
-                Keys.onEscapePressed: row.renaming = false
+                Keys.onEscapePressed: row.widget.renamingSession = ""
                 onVisibleChanged: if (visible) {
                     text = row.widget.nicknames[row.session.sessionId] || ""
                     forceActiveFocus()
@@ -221,7 +221,10 @@ Item {
         // "interrupt" that quietly ended sessions would be worse than none.
         RowLayout {
             spacing: 0
-            Layout.alignment: Qt.AlignVCenter
+            // Top, not centre: an expanded row grows downwards, and controls that
+            // drift to the middle of the details end up nowhere near the name
+            // they act on.
+            Layout.alignment: Qt.AlignTop
             visible: rowHover.hovered && !row.renaming
 
             PlasmaComponents3.ToolButton {
@@ -229,7 +232,7 @@ Item {
                 display: PlasmaComponents3.AbstractButton.IconOnly
                 flat: true
                 text: i18n("Rename in this widget")
-                onClicked: row.renaming = true
+                onClicked: row.widget.renamingSession = row.session.sessionId
 
                 PlasmaComponents3.ToolTip.text: text
                 PlasmaComponents3.ToolTip.visible: hovered
@@ -260,7 +263,8 @@ Item {
 
         ColumnLayout {
             spacing: 0
-            Layout.alignment: Qt.AlignVCenter
+            // Same reasoning as the controls: the status belongs beside the name.
+            Layout.alignment: Qt.AlignTop
 
             PlasmaComponents3.Label {
                 Layout.alignment: Qt.AlignRight

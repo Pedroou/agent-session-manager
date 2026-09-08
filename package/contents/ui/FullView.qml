@@ -120,6 +120,9 @@ Item {
 
         PlasmaComponents3.ScrollView {
             id: scroller
+            // Rows elide rather than run wide, so a horizontal bar can only ever
+            // be a transient miscalculation while a row expands or collapses.
+            PlasmaComponents3.ScrollBar.horizontal.policy: PlasmaComponents3.ScrollBar.AlwaysOff
             Layout.fillWidth: true
             Layout.fillHeight: true
             contentWidth: availableWidth
