@@ -8,12 +8,13 @@
         "Category": "System Information",
         "License": "MIT",
         "Version": "1.0.0",
-        "Website": "https://github.com/Pedroou/Claude-Acc-Manager",
+        "Website": "https://github.com/Pedroou/claude-sessions-widget",
         "Authors": [
             {
-                "Name": "Claude-Acc-Manager"
+                "Name": "Pedro"
             }
-        ]
+        ],
+        "BugReportUrl": "https://github.com/Pedroou/claude-sessions-widget/issues"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }
