@@ -102,6 +102,7 @@ Item {
         spacing: Kirigami.Units.largeSpacing
 
         Rail {
+            id: rail
             sessionState: row.session.state
             fraction: 1.0
             color: row.tone
@@ -265,6 +266,11 @@ Item {
                 Layout.alignment: Qt.AlignRight
                 text: row.session.label
                 color: row.tone
+                // Breathes with the rail by following it, rather than running a
+                // second animation of its own: two identical animations started
+                // in the same frame look synchronised right up until something
+                // restarts one of them.
+                opacity: rail.opacity
                 // Set piecemeal: assigning the whole `font` group and one of its
                 // members in the same object is a QML error.
                 font.family: Kirigami.Theme.smallFont.family

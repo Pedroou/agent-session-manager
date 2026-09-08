@@ -249,8 +249,11 @@ routing it to the notification centre would bury the messages that matter. Hover
 nickname the widget keeps, and a close button that asks once before ending it.
 The eye in the header blanks every name and path for screen-sharing.
 
-**Motion.** Exactly one thing moves on its own: a working session's rail
-breathes. It stops when the user has turned animations off.
+**Motion.** Exactly one thing moves on its own: a working session breathes — the
+rail and its "Working" label together. The label follows the rail's opacity
+rather than running a second animation, because two identical animations started
+in the same frame look synchronised right up until something restarts one of
+them. It stops when the user has turned animations off.
 
 ## Interrupting
 
