@@ -15,7 +15,7 @@ function session(over) {
         pid: 1234,
         profile: "work",
         name: "checkout-flow-7",
-        cwd: "/home/u/Projects/checkout-flow",
+        cwd: "/home/u/code/checkout-flow",
         dir: "checkout-flow",
         repository: "checkout-flow",
         branch: "main",
@@ -220,13 +220,13 @@ test("only the rows worth pasting are click-to-copy", () => {
 
 test("the resume command lands you back in the session, in its own directory", () => {
     assert.equal(Sessions.resumeCommand(session()),
-                 "cd /home/u/Projects/checkout-flow && claude --resume abc-123")
+                 "cd /home/u/code/checkout-flow && claude --resume abc-123")
     assert.equal(Sessions.resumeCommand(session({profile: "personal"})),
-                 "cd /home/u/Projects/checkout-flow && claude-personal --resume abc-123")
+                 "cd /home/u/code/checkout-flow && claude-personal --resume abc-123")
 })
 
 test("a path with a space or a quote in it is still a safe command", () => {
-    assert.equal(Sessions.shellQuote("/home/u/my projects"), "'/home/u/my projects'")
+    assert.equal(Sessions.shellQuote("/home/u/my code"), "'/home/u/my code'")
     assert.equal(Sessions.shellQuote("/home/u/it's"), "'/home/u/it'\\''s'")
     assert.equal(Sessions.shellQuote("/plain/path-1.2"), "/plain/path-1.2")
 })

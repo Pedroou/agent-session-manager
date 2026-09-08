@@ -238,7 +238,7 @@ Claude Code Sessions                    👁  ⟳
 ▎ checkout-flow-7                          Waiting
 ▎ checkout-flow — input needed                    12s
 ▎ docs-site-b2      ✎  ✕  Running
-▎ Claude-Acc-Manager — npm test           4m
+▎ docs-site — npm run build           4m
 ──────────────────────────────────────────────
 ▸ work        ▸  Session ███░░░░░░░  11%
 ```
