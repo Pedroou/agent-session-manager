@@ -41,6 +41,10 @@ ColumnLayout {
 
     Kirigami.Separator {
         Layout.fillWidth: true
+        // The popup pads its own edges more generously than a row pads itself, so
+        // without this the footer sits hard up against the rule while having room
+        // to spare on every other side.
+        Layout.bottomMargin: Kirigami.Units.largeSpacing
     }
 
     Repeater {
