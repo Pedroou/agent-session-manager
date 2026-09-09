@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/screenshots/logo.png" alt="Claude Sessions" width="104">
+
 # Claude Sessions
 
 **A KDE Plasma 6 panel widget that shows what every running Claude Code session is doing.**
