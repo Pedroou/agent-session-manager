@@ -346,9 +346,12 @@ All of it resets from one button, at the foot of the General page.
 
 - **Check every** *n* seconds (1-60, default 5) while the popup is closed.
 - **Popup max height**, counted in sessions (3-25, default 5). Grid units were
-  the old unit and meant nothing to anyone reading the dialog. The popup's
-  minimum, preferred and maximum heights are all pinned to the same number, so
-  Plasma cannot remember a height dragged by hand and override the setting.
+  the old unit and meant nothing to anyone reading the dialog. It is a fixed
+  height, not a ceiling: four sessions in a popup set to five leave space rather
+  than shrinking the window, because a popup that changed shape every time a
+  session started or ended was unreadable as a setting. The minimum, preferred
+  and maximum heights are all the same number, which Plasma propagates to the
+  window, so it cannot be dragged and any remembered height is clamped away.
 - **Show**: sessions that are done · the session count in the panel · the
   needs-attention highlight · plan usage.
 - **Customize status colours** - off uses the built-ins; on reveals a picker per

@@ -45,7 +45,7 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("Fewer sessions make a shorter popup. If past the limit, a scrollbar appears.")
+            text: i18n("Sets a fixed popup height. If past the limit, a scrollbar appears.")
         }
 
         Item {

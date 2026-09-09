@@ -24,24 +24,22 @@ Item {
     readonly property real maxHeight: header.implicitHeight + footer.implicitHeight
                                       + nominalRow * plasmoid.configuration.maxSessions
 
-    readonly property real wantedHeight: Math.min(maxHeight,
-                                                  header.implicitHeight
-                                                  + (full.shown.length > 0
-                                                     ? list.contentHeight + Kirigami.Units.smallSpacing * 2
-                                                     : Kirigami.Units.gridUnit * 7)
-                                                  + footer.implicitHeight)
-
     Layout.minimumWidth: Kirigami.Units.gridUnit * 17
     Layout.preferredWidth: Kirigami.Units.gridUnit * 25
 
-    // Minimum, preferred and maximum all the same number. The popup is exactly as
-    // tall as its sessions need, up to the ceiling in settings, and pinning all
-    // three is what stops Plasma remembering a height the user dragged it to.
-    // That remembered height was overriding the setting and leaving the popup
-    // stuck at whatever size it had last been.
-    Layout.minimumHeight: wantedHeight
-    Layout.preferredHeight: wantedHeight
-    Layout.maximumHeight: wantedHeight
+    // One height, always: the number of sessions you asked for, whether or not
+    // that many are running. Sizing to the content instead meant the popup
+    // changed shape every time a session started, ended or was expanded, and the
+    // setting only ever appeared to do anything once you were over the limit.
+    // Fewer sessions now leave space rather than shrinking the window.
+    //
+    // Minimum, preferred and maximum are the same number on purpose. Plasma
+    // propagates them to the window (QWindow::setMinimumHeight / setMaximumHeight),
+    // so the popup cannot be dragged and any height Plasma remembered from before
+    // is clamped to this one.
+    Layout.minimumHeight: maxHeight
+    Layout.preferredHeight: maxHeight
+    Layout.maximumHeight: maxHeight
 
     CopyToast {
         notice: full.widget ? full.widget.copyNotice : ""
