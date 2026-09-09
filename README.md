@@ -45,7 +45,7 @@ doing, so a glance is enough.
 ## Reading the panel
 
 <div align="center">
-<img src="docs/screenshots/panel.png" alt="Five coloured bars with a usage strip beneath and the session count beside them" width="175">
+<img src="docs/screenshots/panel.png" alt="Five coloured bars with a usage strip beneath and the session count beside them" width="122">
 </div>
 
 <div align="center">
