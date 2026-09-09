@@ -108,8 +108,8 @@ Item {
             color: row.tone
             thickness: 3
             // Stretched to the row rather than measured from any one column.
-            // It used to take its length from the headings, so censoring — which
-            // removes the second line — left the rail visibly short of its own
+            // It used to take its length from the headings, so censoring - which
+            // removes the second line - left the rail visibly short of its own
             // row. `track: 0` keeps it from claiming height of its own; the
             // layout gives it whatever the tallest column ends up being.
             track: 0
@@ -232,7 +232,7 @@ Item {
             // they act on.
             Layout.alignment: Qt.AlignTop
             // fillHeight off explicitly. A layout nested in a layout is stretched
-            // by default, and capping it with maximumHeight did not stop that —
+            // by default, and capping it with maximumHeight did not stop that -
             // it just let the row fill to 90px with the buttons floating in the
             // middle of it. Off, it takes its own height and the alignment above
             // finally means something.
@@ -245,7 +245,7 @@ Item {
                 icon.height: Kirigami.Units.iconSizes.small
                 // Padding, not layout hints. A RowLayout takes its implicit
                 // height from its children's implicit heights, and a Control
-                // derives that from content plus padding — so Layout.preferred
+                // derives that from content plus padding - so Layout.preferred
                 // and Layout.minimum were both ignored and the button stayed
                 // 32px, taller than a censored row's 28. Trimming the padding
                 // shrinks the thing the layout is actually reading.
@@ -267,7 +267,7 @@ Item {
                 icon.height: Kirigami.Units.iconSizes.small
                 // Padding, not layout hints. A RowLayout takes its implicit
                 // height from its children's implicit heights, and a Control
-                // derives that from content plus padding — so Layout.preferred
+                // derives that from content plus padding - so Layout.preferred
                 // and Layout.minimum were both ignored and the button stayed
                 // 32px, taller than a censored row's 28. Trimming the padding
                 // shrinks the thing the layout is actually reading.

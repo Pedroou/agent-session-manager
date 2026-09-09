@@ -55,9 +55,9 @@ no idea about either.
 
 | Shown as    | Source                                    | Means                                                        |
 |-------------|-------------------------------------------|--------------------------------------------------------------|
-| **Waiting** | `status: waiting`                         | Blocked on you — a permission prompt, a dialog, an MCP request. `waitingFor`/`needs` says which. |
-| **Error**   | worked out — transcript                   | Idle, and its last turn ended in an API error. The message is shown. |
-| **Running** | worked out — `/proc`                      | Busy, with a shell command or script executing. The command is shown. |
+| **Waiting** | `status: waiting`                         | Blocked on you - a permission prompt, a dialog, an MCP request. `waitingFor`/`needs` says which. |
+| **Error**   | worked out - transcript                   | Idle, and its last turn ended in an API error. The message is shown. |
+| **Running** | worked out - `/proc`                      | Busy, with a shell command or script executing. The command is shown. |
 | **Working** | `status: busy`                            | Claude is generating, with no command out                    |
 | **Shell**   | `status: shell`                           | The session has handed the terminal to a shell               |
 | **Done**    | `status: idle`                            | Finished; waiting for your next prompt                       |
@@ -72,15 +72,15 @@ call as a direct child shell of its own process; its long-lived children are MCP
 servers (`npm exec …`), which are not shells, so the two never get confused. The
 `eval '…'` payload in the child's `cmdline` is the command, and it is shown.
 Subagents run *inside* the process and leave no trace in `/proc`, so a session
-thinking through a subagent is indistinguishable from one thinking on its own —
+thinking through a subagent is indistinguishable from one thinking on its own -
 both read as Working.
 
 **Error** is detected from the transcript. A session whose turn fails goes back
 to `idle`, but the transcript records it, and the last assistant entry carries
 `isApiErrorMessage` with a message worth reading ("You've hit your session limit
 · resets 6:40pm", "Login expired · Please run /login"). The transcript is a
-lagging source — the assistant's own `tool_use` entry is not flushed while a
-tool runs — which is exactly why it is only trusted for a state the session has
+lagging source - the assistant's own `tool_use` entry is not flushed while a
+tool runs - which is exactly why it is only trusted for a state the session has
 already stopped in.
 
 ### Liveness
@@ -88,7 +88,7 @@ already stopped in.
 A record outlives its session when the process is killed rather than exiting
 cleanly, so a record alone does not mean "running". Each one is checked the way
 Claude Code checks its own: the process must exist **and** field 22 of
-`/proc/<pid>/stat` — the start time in clock ticks — must equal the record's
+`/proc/<pid>/stat` - the start time in clock ticks - must equal the record's
 `procStart`. That second half is what rules out a recycled pid.
 
 ### Both profiles
@@ -112,14 +112,14 @@ anthropic-beta: oauth-2025-04-20
 
 The token goes to curl through stdin (`--config -`), never argv, so it does not
 appear in the process list. `limits[]` already carries a percentage, a severity,
-a reset time and — for scoped limits — the model they belong to, so the bars on
+a reset time and - for scoped limits - the model they belong to, so the bars on
 offer are whatever the plan actually has rather than a hardcoded three. Today
 that is Session, Weekly and Fable.
 
 This is the only part of the widget that touches the network, so it is the only
 part with an off switch, and it runs on a five-minute timer rather than the
 session poll. Opening the popup also asks for a reading, but no more often than
-once a minute — otherwise a habit of opening and closing the widget is enough to
+once a minute - otherwise a habit of opening and closing the widget is enough to
 get throttled, and the punishment arrives as an empty bar.
 
 When a fetch does fail, the profile keeps the bars it had rather than blanking:
@@ -167,7 +167,7 @@ binds and lays out.
 which records are live, how a status maps to a state, the two states that are
 worked out rather than read, the git repository and branch behind each session,
 and what order they come in. It prints one document and nothing else, which is
-also how it is tested — `test/test-collectors.fish` builds a throwaway `$HOME`, a
+also how it is tested - `test/test-collectors.fish` builds a throwaway `$HOME`, a
 throwaway `/proc` (`CLAUDE_SESSIONS_PROC`) and throwaway transcripts, and runs
 the real script against them.
 
@@ -186,7 +186,7 @@ what took it there from ~520 ms.
 
 ### Data flow
 
-1. A `Timer` in `main.qml` fires — every second while the popup is open, every
+1. A `Timer` in `main.qml` fires - every second while the popup is open, every
    `refreshInterval` seconds (default 5) while it is closed. A second, five-minute
    timer drives usage.
 2. `Plasma5Support.DataSource` (`executable` engine) runs the collector,
@@ -205,8 +205,8 @@ All rails are the same length; colour alone carries the state.
 
 Status colours are the widget's own rather than the theme's, because the theme
 accent is usually blue and blue is exactly what disappears into a blue panel.
-The defaults are mid-tones — the weight a palette reserves for "legible on either
-background" — and every one of them is overridable:
+The defaults are mid-tones - the weight a palette reserves for "legible on either
+background" - and every one of them is overridable:
 
 | State   | Default   | Why                                                        |
 |---------|-----------|------------------------------------------------------------|
@@ -221,12 +221,12 @@ Blue is the commonest convention for "in progress" and is deliberately unused; a
 test asserts no default is a blue.
 
 **Panel.** The bars side by side, with the running total beside them in the
-colour of the state with the most sessions — except that anything blocked on a
+colour of the state with the most sessions - except that anything blocked on a
 person wins outright, however few, since that is the question the panel exists to
 answer. Capped at eight bars; past that the number carries it. Nothing running
-draws one faint tick — quiet, not broken. Vertical panels stack the bars.
+draws one faint tick - quiet, not broken. Vertical panels stack the bars.
 
-**Popup.** A heading, then one sentence — "1 waiting for you, 3 working" — with
+**Popup.** A heading, then one sentence - "1 waiting for you, 3 working" - with
 each count in its own status colour, then the list, sorted with anything blocked
 at the top. The popup is as tall as its sessions need and no taller, up to a
 ceiling in settings, past which the list scrolls.
@@ -236,22 +236,22 @@ Claude Code Sessions                    👁  ⟳
 1 waiting for you, 2 running, 1 done
 ──────────────────────────────────────────────
 ▎ checkout-flow-7                          Waiting
-▎ checkout-flow — input needed                    12s
+▎ checkout-flow - input needed                    12s
 ▎ docs-site-b2      ✎  ✕  Running
-▎ docs-site — npm run build           4m
+▎ docs-site - npm run build           4m
 ──────────────────────────────────────────────
 ▸ work        ▸  Session ███░░░░░░░  11%
 ```
 
-Clicking a row opens its details — Profile, Uptime, Directory, Repository,
-Branch, Session, Process, Version — and clicking any value copies it. Right-
+Clicking a row opens its details - Profile, Uptime, Directory, Repository,
+Branch, Session, Process, Version - and clicking any value copies it. Right-
 clicking copies the whole thing when open, and the command to get back into the
 session when closed.
 
 Every copy is confirmed by a pill that floats over the list for about two
 seconds. It floats rather than sitting in the layout so a copy never reflows the
-popup under the pointer, and it names what it took — "Repository copied",
-"Resume command copied" — because a single row offers half a dozen copy targets
+popup under the pointer, and it names what it took - "Repository copied",
+"Resume command copied" - because a single row offers half a dozen copy targets
 and a bare "Copied" would leave you guessing which one you hit. It is
 deliberately not a system notification: this is a keystroke-sized action, and
 routing it to the notification centre would bury the messages that matter. Hovering reveals a pencil, which gives the session a
@@ -259,12 +259,12 @@ nickname the widget keeps, and a close button that asks once before ending it.
 The eye in the header blanks every name and path for screen-sharing.
 
 **The panel's usage strip.** Under the session bars, a thin bar for whichever
-limit the popup's footer is set to, on whichever profile it has selected — the
+limit the popup's footer is set to, on whichever profile it has selected - the
 same measurement, without the number, because at panel size a percentage is
 unreadable and the point is the glance. It can be held back until the limit is
 some way gone, so it stays out of the way until it means something.
 
-**Motion.** Exactly one thing moves on its own: a working session breathes — the
+**Motion.** Exactly one thing moves on its own: a working session breathes - the
 rail and its "Working" label together. The label follows the rail's opacity
 rather than running a second animation, because two identical animations started
 in the same frame look synchronised right up until something restarts one of
@@ -286,7 +286,7 @@ process.on("SIGTERM", () => { …; rU(); this.shutdown(0) })
 Both signals mean "shut down". So a signal can end a session but cannot pause
 one, and a button labelled "interrupt" that quietly ended sessions would be worse
 than no button. Ending is kept, because SIGTERM is genuinely the graceful path
-and the transcript survives — which is what the right-click resume command is
+and the transcript survives - which is what the right-click resume command is
 for. Doing this properly would mean speaking the peer protocol on
 `messagingSocketPath`, which is undocumented and not worth the risk here.
 
@@ -295,11 +295,11 @@ for. Doing this properly would mean speaking the peer protocol on
 | Condition                          | Panel                     | Popup                                                    |
 |------------------------------------|---------------------------|-----------------------------------------------------------|
 | Nothing running                    | faint tick, no number     | "No sessions running" / "Open a terminal and run claude to start one." |
-| Before the first result            | faint tick                | nothing — an empty list would be a guess, not an answer   |
+| Before the first result            | faint tick                | nothing - an empty list would be a guess, not an answer   |
 | Collector failed / unparseable     | tick in the error colour  | "Can't read the session list" + stderr                    |
 | A torn or malformed record         | unaffected                | that one record is skipped, the rest still listed         |
 | Profile not signed in              | unaffected                | "Not signed in" in place of its usage bar                 |
-| Token expired                      | unaffected                | "Signed out — run claude to sign back in"                 |
+| Token expired                      | unaffected                | "Signed out - run claude to sign back in"                 |
 | Usage API unreachable, or rate-limiting | unaffected           | last good reading stays; "Couldn't reach the usage API" if there was none |
 
 A note on that last row, learned the hard way: the endpoint answers a rate-limited
@@ -310,7 +310,7 @@ failure it is.
 
 ## Settings
 
-Four pages, each a `KCM.SimpleKCM` rather than a bare `Kirigami.FormLayout` —
+Four pages, each a `KCM.SimpleKCM` rather than a bare `Kirigami.FormLayout` -
 that wrapper is what gives a config page its title and its margins, because the
 config dialog instantiates each page with `title` set to the category's name and
 a root with a `title` property picks it up. Plasma's own About and Keyboard
@@ -318,43 +318,47 @@ Shortcuts pages are built the same way; ours started out flush against the top
 with no heading, which is what gave them away as third-party.
 
 They are split by *where* a setting takes effect rather than by what kind of
-thing it is — the same split the widely-used plasmoids arrive at once they have
+thing it is - the same split the widely-used plasmoids arrive at once they have
 both a panel and a popup to configure, and the reason a single "General" page
 stopped working here.
 
-**General** — how often to check, the needs-attention highlight, and the privacy
+**General** - how often to check, the needs-attention highlight, and the privacy
 toggle that blanks names and paths. Then, last and set apart, one button that
 resets every page. Plasma's applet dialog has no Defaults button of its own, so
 the widget provides it; a control that throws away every setting belongs at the
 end of the first page rather than at the top competing with the settings it would
 discard.
 
-**Panel** — the session count and its size, and the usage strip: whether to show
+**Panel** - the session count and its size, and the usage strip: whether to show
 it, how used the limit has to be before it appears, and whether it colours itself
 by severity.
 
-**Popup** — how tall it may grow, whether finished sessions are listed, whether
+**Popup** - how many sessions it shows before scrolling, whether finished
+sessions are listed, whether
 the usage footer shows, and which rows an expanded session has. Where the branch
 goes is a two-option chooser rather than a checkbox hanging off the Branch tick,
 which read as an afterthought and looked like one.
 
-**Colours** — the six status colours, each with its own revert. Off goes back to
+**Colours** - the six status colours, each with its own revert. Off goes back to
 the built-ins rather than to the last colours picked.
 
 All of it resets from one button, at the foot of the General page.
 
-- **Check every** *n* seconds (1–60, default 5) while the popup is closed.
-- **Tallest the popup gets** (8–60 grid units, default 21).
+- **Check every** *n* seconds (1-60, default 5) while the popup is closed.
+- **Popup max height**, counted in sessions (3-25, default 5). Grid units were
+  the old unit and meant nothing to anyone reading the dialog. The popup's
+  minimum, preferred and maximum heights are all pinned to the same number, so
+  Plasma cannot remember a height dragged by hand and override the setting.
 - **Show**: sessions that are done · the session count in the panel · the
   needs-attention highlight · plan usage.
-- **Customize status colours** — off uses the built-ins; on reveals a picker per
+- **Customize status colours** - off uses the built-ins; on reveals a picker per
   state, each with its own revert button. Turning it off goes back to the
   defaults rather than to the last colours picked.
-- **Session details** — Repository, Branch (and whether the branch gets its own
+- **Session details** - Repository, Branch (and whether the branch gets its own
   row or rides on the repository as `repo/branch`), Session, Process, Version.
   Profile, Uptime and Directory are not optional: they are what the expansion is
   for. Directory and Repository can be abbreviated to Dir and Repo.
-- **Hide session names and paths** — the same toggle as the eye in the header.
+- **Hide session names and paths** - the same toggle as the eye in the header.
 
 ## Risks
 

@@ -29,7 +29,7 @@ if not $package/contents/scripts/claude-sessions >/dev/null
 end
 
 # kpackagetool6 walks every installed plasmoid and complains about each one that
-# isn't an applet — other people's widgets, nothing to do with this package. That
+# isn't an applet - other people's widgets, nothing to do with this package. That
 # one line is dropped; every other message still gets through.
 function __kpt
     kpackagetool6 --type Plasma/Applet $argv 2>&1 \

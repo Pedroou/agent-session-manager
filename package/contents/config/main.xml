@@ -12,12 +12,12 @@
       <min>1</min>
       <max>60</max>
     </entry>
-    <entry name="maxPopupHeight" type="Int">
-      <label>Tallest the popup may grow, in grid units. It shrinks to fit fewer
-      sessions and scrolls past this.</label>
-      <default>21</default>
-      <min>8</min>
-      <max>60</max>
+    <entry name="maxSessions" type="Int">
+      <label>How many sessions the popup shows before it starts scrolling. Grid
+      units were the old unit and meant nothing to anyone reading the dialog.</label>
+      <default>5</default>
+      <min>3</min>
+      <max>25</max>
     </entry>
     <entry name="showDone" type="Bool">
       <label>List sessions that have finished and are waiting for a prompt.</label>

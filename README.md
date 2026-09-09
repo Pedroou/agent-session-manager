@@ -9,7 +9,7 @@
 [![Licence: MIT](https://img.shields.io/badge/Licence-MIT-blue?style=for-the-badge&labelColor=2d333b)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-118-brightgreen?style=for-the-badge&labelColor=2d333b)](#tests)
 
-<img src="docs/screenshots/panel.png" alt="Five coloured bars in a panel with a usage strip beneath them" width="340">
+<img src="docs/screenshots/preview.png" alt="Claude Sessions: five coloured bars in a panel, and the popup listing five sessions" width="820">
 
 </div>
 
@@ -26,9 +26,13 @@ few of them there are.
 
 ## What the colours mean
 
+<div align="center">
+<img src="docs/screenshots/panel.png" alt="Five coloured bars with a usage strip beneath, and the session count beside them" width="220">
+</div>
+
 | | | |
 |---|---|---|
-| 🟧 **Waiting** | orange | blocked on you — and it says what for |
+| 🟧 **Waiting** | orange | blocked on you - and it says what for |
 | 🟥 **Error** | red | its last turn failed, with the message |
 | 🟨 **Running** | yellow | a command or script is executing, and it says which |
 | 🟦 **Working** | cyan | Claude is generating |
@@ -40,15 +44,15 @@ Every one is overridable in settings.
 ## Features
 
 - **One bar per session in the panel**, plus a running total coloured by the
-  state with the most sessions — unless something is waiting on you, which
+  state with the most sessions - unless something is waiting on you, which
   always wins.
 - **A plan usage strip** under the bars, which can stay hidden until the limit
   is actually worth knowing about.
-- **Click a row for its details** — profile, uptime, directory, repository,
+- **Click a row for its details** - profile, uptime, directory, repository,
   branch, session id, pid, version. Click any value to copy it; every copy is
   confirmed by name, because a row has eight things you might have been aiming
   at.
-- **Right-click to copy** the whole row, or — collapsed — the command that drops
+- **Right-click to copy** the whole row, or - collapsed - the command that drops
   you back into that session.
 - **Rename a session** to something you will recognise, and **end one** with a
   button that asks first.
@@ -75,7 +79,7 @@ Then right-click the panel → **Add or Manage Widgets…** → search **Claude
 Sessions**.
 
 Upgrading while it is already on the panel needs a shell restart, because Plasma
-caches applet QML — `install.fish` prints the command.
+caches applet QML - `install.fish` prints the command.
 
 ## How it works
 
@@ -88,13 +92,13 @@ Two of the six states are **not** in that record and are worked out here.
 
 **Running** comes from the process tree. Claude Code executes every Bash tool
 call as a direct child shell of its own process, while its long-lived children
-are MCP servers — which are not shells, so the two never get confused. The
+are MCP servers - which are not shells, so the two never get confused. The
 command itself is recoverable from the child's `cmdline`, which is why a row can
 tell you it is running `npm run build`.
 
 **Error** comes from the transcript, whose last assistant entry carries
 `isApiErrorMessage` and a message worth reading. The transcript lags live state
-badly — the assistant's own tool call is not flushed while a tool is running —
+badly - the assistant's own tool call is not flushed while a tool is running -
 which is exactly why it is trusted only for a session that has already stopped.
 
 Records outlive sessions that were killed rather than closed, so each one is
@@ -108,7 +112,7 @@ off a raw-mode terminal, and its actual `SIGINT` handler calls the same
 a button labelled "interrupt" that quietly ended sessions would be worse than no
 button at all.
 
-[`docs/design.md`](docs/design.md) covers the rest — including why each colour is
+[`docs/design.md`](docs/design.md) covers the rest - including why each colour is
 what it is, and what the usage endpoint does when it rate-limits you.
 
 ## Tests
@@ -131,7 +135,7 @@ a flag are all covered rather than assumed.
 ## Privacy
 
 The only part that touches the network is the plan-usage bar, which asks
-Anthropic for your limits using the login Claude Code already stores — at most
+Anthropic for your limits using the login Claude Code already stores - at most
 once a minute, and every five minutes on its own. The token is handed to `curl`
 through stdin rather than argv, so it never appears in the process list, and the
 whole feature has an off switch.
@@ -141,4 +145,4 @@ config.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

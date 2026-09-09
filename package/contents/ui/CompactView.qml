@@ -9,7 +9,7 @@ import "../code/sessions.js" as Sessions
 import "../code/usage.js" as Usage
 
 // The panel only has to answer one question: is anything waiting on me? So the
-// sessions are drawn as bars — one each, in the colour of its state — with the
+// sessions are drawn as bars - one each, in the colour of its state - with the
 // running total beside them in the colour of whichever state dominates, and a
 // thin usage bar underneath when the plan is worth worrying about.
 MouseArea {
@@ -40,13 +40,17 @@ MouseArea {
                             ? plasmoid.configuration.usageBarPersonal
                             : plasmoid.configuration.usageBarWork)
         : null
+    // Below three bars the strip is barely wider than it is tall and reads as a
+    // smudge rather than a measurement, so it waits until there is width to fill.
+    readonly property int usageMinBars: 3
     readonly property bool usageVisible: plasmoid.configuration.panelUsage
         && usageBar !== null
+        && railed.length >= usageMinBars
         && Usage.pastThreshold(usageBar, plasmoid.configuration.panelUsageThreshold)
     readonly property real stripThickness: Math.max(2, Math.round(thickness * 0.85))
 
     // One small gap, not two: the bars are the whole point of the panel view, so
-    // they take as much of it as they can without touching the edges — less
+    // they take as much of it as they can without touching the edges - less
     // whatever the usage strip underneath is using.
     readonly property real track: Math.max(Kirigami.Units.iconSizes.small,
                                            (sideways ? compact.width : compact.height)
@@ -54,7 +58,7 @@ MouseArea {
                                            - (usageVisible && !sideways ? stripThickness + gap : 0))
 
     // Measured from the panel's own thickness rather than from the bar track,
-    // which shrinks when the usage strip appears — sizing the number off that
+    // which shrinks when the usage strip appears - sizing the number off that
     // made it get smaller the moment the strip showed up.
     readonly property real countBase: (sideways ? compact.width : compact.height)
                                       - Kirigami.Units.smallSpacing

@@ -29,7 +29,7 @@ KCM.SimpleKCM {
 
         QQC2.SpinBox {
             id: countScale
-            Kirigami.FormData.label: i18n("Its size:")
+            Kirigami.FormData.label: i18n("Number size:")
             enabled: showTotal.checked
             from: 60
             to: 200
@@ -57,12 +57,12 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("Tracks the same limit and profile the popup's usage bar is set to, without the numbers.")
+            text: i18n("Tracks the same limit and profile the popup's usage bar is set to.")
         }
 
         QQC2.ComboBox {
             id: threshold
-            Kirigami.FormData.label: i18n("Show it:")
+            Kirigami.FormData.label: i18n("When:")
             enabled: panelUsage.checked
             textRole: "label"
             valueRole: "value"
@@ -76,7 +76,7 @@ KCM.SimpleKCM {
             ]
 
             // A ComboBox cannot be aliased to an int setting, so the two are kept in
-            // step by hand — currentIndex out of the value on load, value out of the
+            // step by hand - currentIndex out of the value on load, value out of the
             // selection on change.
             Component.onCompleted: threshold.currentIndex = threshold.indexOfValue(page.cfg_panelUsageThreshold)
             onActivated: page.cfg_panelUsageThreshold = threshold.currentValue
@@ -95,7 +95,7 @@ KCM.SimpleKCM {
         QQC2.CheckBox {
             id: panelUsageColour
             enabled: panelUsage.checked
-            text: i18n("Colour it by how much is used")
+            text: i18n("Colour based on usage level")
         }
 
         QQC2.Label {
@@ -103,7 +103,7 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("Green, amber, then red — the same thresholds the popup uses. Off keeps it a plain neutral bar.")
+            text: i18n("Green < amber < red - same as popup thresholds.")
         }
     }
 }

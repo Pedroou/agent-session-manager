@@ -7,7 +7,7 @@ import "../code/usage.js" as Usage
 import "../code/sessions.js" as Sessions
 
 // One plan limit: a track, a fill coloured by how close it is, and the number.
-// When there is nothing to draw, the message takes the whole width — a profile
+// When there is nothing to draw, the message takes the whole width - a profile
 // that is signed out should say so, not show an empty bar reading zero.
 RowLayout {
     id: usage
@@ -73,7 +73,7 @@ RowLayout {
             // The animation is on the *fraction*, not on the width in pixels.
             // Animating width conflates two different events: the value changing,
             // which should slide, and the track being laid out or resized, which
-            // should not. That was the double-take on opening — the bar drew at
+            // should not. That was the double-take on opening - the bar drew at
             // its real width, the layout pass then moved the track, and the
             // Behavior replayed the whole fill from empty.
             property real portion: 0
@@ -113,7 +113,7 @@ RowLayout {
             var text = Usage.resetText(usage.bar.resetsAt, usage.now)
             if (usage.stale) {
                 var age = Sessions.age(usage.since, usage.now)
-                var note = age ? i18n("couldn't refresh — reading is %1 old", age)
+                var note = age ? i18n("couldn't refresh - reading is %1 old", age)
                               : i18n("couldn't refresh")
                 return text ? text + " · " + note : note
             }

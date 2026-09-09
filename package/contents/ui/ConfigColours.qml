@@ -31,7 +31,7 @@ KCM.SimpleKCM {
         QQC2.CheckBox {
             id: customColors
             Kirigami.FormData.label: i18n("Status colours:")
-            text: i18n("Choose my own")
+            text: i18n("Customize")
         }
 
         QQC2.Label {
@@ -39,7 +39,7 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("Turning this off goes back to the built-in colours, not to the last ones picked here.")
+            text: i18n("Turning this off goes back to the built-in colours.")
         }
 
         // Hidden rather than disabled while the box is unticked: leaving the pickers

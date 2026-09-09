@@ -14,7 +14,7 @@ import org.kde.kcmutils as KCM
 
 KCM.SimpleKCM {
     id: page
-    property alias cfg_maxPopupHeight: popupHeight.value
+    property alias cfg_maxSessions: popupHeight.value
     property alias cfg_showDone: showDone.checked
     property alias cfg_showUsage: showUsage.checked
     property alias cfg_detailRepository: detailRepository.checked
@@ -28,12 +28,12 @@ KCM.SimpleKCM {
     Kirigami.FormLayout {
         QQC2.SpinBox {
             id: popupHeight
-            Kirigami.FormData.label: i18n("Tallest it gets:")
-            from: 8
-            to: 60
+            Kirigami.FormData.label: i18n("Popup max height:")
+            from: 3
+            to: 25
             stepSize: 1
             textFromValue: function (value) {
-                return i18np("%1 line", "%1 lines", value)
+                return i18np("%1 session", "%1 sessions", value)
             }
             valueFromText: function (text) {
                 return parseInt(text, 10)
@@ -45,7 +45,7 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("Fewer sessions make a shorter popup. More than this and it scrolls.")
+            text: i18n("Fewer sessions make a shorter popup. If past the limit, a scrollbar appears.")
         }
 
         Item {
@@ -68,7 +68,7 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("The only part of the widget that uses the network. It asks Anthropic for your plan limits every five minutes, with the login Claude Code already has.")
+            text: i18n("Uses the network: Requests Anthropic for your plan limits every five minutes through the current Claude Code login.")
         }
 
         Item {
@@ -106,19 +106,23 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("Profile, uptime and directory always show — they are what opening a row is for.")
+            text: i18n("Profile, uptime and directory always show.")
+        }
+
+        Item {
+            Kirigami.FormData.isSection: true
         }
 
         QQC2.ComboBox {
             id: branchPlacement
-            Kirigami.FormData.label: i18n("Branch shows:")
+            Kirigami.FormData.label: i18n("Branch display:")
             enabled: detailBranch.checked
             textRole: "label"
             valueRole: "value"
 
             model: [
-                {label: i18n("With the repository, as repo/branch"), value: false},
-                {label: i18n("On a row of its own"), value: true}
+                {label: i18n("repository/branch"), value: false},
+                {label: i18n("On its own row"), value: true}
             ]
 
             // Kept in step by hand: a ComboBox cannot be aliased to a bool.
@@ -136,10 +140,14 @@ KCM.SimpleKCM {
             }
         }
 
+        Item {
+            Kirigami.FormData.isSection: true
+        }
+
         QQC2.CheckBox {
             id: shortLabels
-            Kirigami.FormData.label: i18n("Labels:")
-            text: i18n("Shorten “Directory” and “Repository” to “Dir” and “Repo”")
+            Kirigami.FormData.label: i18n("Shorten Labels:")
+            text: i18n("Directory -> Dir | Repository -> Repo")
         }
     }
 }

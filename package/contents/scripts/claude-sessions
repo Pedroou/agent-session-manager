@@ -38,7 +38,7 @@ set -l profile_dirs $HOME/.claude $HOME/.claude-personal
 # Field 22 of /proc/<pid>/stat is the process start time in clock ticks, which is
 # exactly what Claude Code stores as `procStart`. Field 2 is the executable name
 # in parentheses and may itself contain spaces or parens, so the fields are counted
-# from after the *last* ')' — where field 22 overall becomes field 20.
+# from after the *last* ')' - where field 22 overall becomes field 20.
 function __cs_alive -a proc_root pid want_start
     set -l statfile $proc_root/$pid/stat
     test -r $statfile; or return 1
@@ -58,7 +58,7 @@ end
 # process, so a child whose comm is a shell means "a command or script is
 # executing". Its long-lived children are MCP servers (`npm exec …`, `node`),
 # which are not shells, so the two never get confused. Subagents run inside the
-# process and leave no trace here — they stay indistinguishable from thinking.
+# process and leave no trace here - they stay indistinguishable from thinking.
 #
 # Prints the command being run, when it can be recovered, and returns 1 when
 # nothing is running.
@@ -97,7 +97,7 @@ end
 
 # Did this session's last turn end in an API error?
 #
-# The registry has no error state — a session that fails goes back to `idle` —
+# The registry has no error state - a session that fails goes back to `idle` -
 # but the transcript records it, and unlike a live status the transcript is
 # reliable here precisely because the session has stopped writing. The last
 # assistant entry carries `isApiErrorMessage` and a message worth showing
@@ -199,7 +199,7 @@ for i in (seq (count $profile_ids))
         set -l pid (string replace -r '\.json$' '' -- (basename $record))
         string match -qr '^[0-9]+$' -- $pid; or continue
 
-        # A torn record — Claude Code rewriting the file while this reads it — is
+        # A torn record - Claude Code rewriting the file while this reads it - is
         # not valid JSON, and would fail the whole batch. Requiring a complete
         # object drops just that one record and keeps the rest of the panel.
         set -l body (string trim -- (string collect <$record 2>/dev/null))
@@ -213,7 +213,7 @@ for i in (seq (count $profile_ids))
         set -l cwd (string match -gr '"cwd"\s*:\s*"([^"]*)"' -- "$body")
 
         # Only busy sessions can be running a command, and only idle ones can be
-        # sitting on a failed turn — so neither check runs where it can't apply.
+        # sitting on a failed turn - so neither check runs where it can't apply.
         set -l overlay ""
         set -l detail ""
         if test "$status_now" = busy
@@ -232,22 +232,22 @@ for i in (seq (count $profile_ids))
 
         set -a bodies "$body"
         # Every value carries a leading ":" because jq still reads an argument
-        # beginning with "-" as an option, even after --args — and a command line
+        # beginning with "-" as an option, even after --args - and a command line
         # or an error message can quite reasonably start with one. jq strips it.
         set -a extras ":$id" ":$overlay" ":$detail" ":$git_info[1]" ":$git_info[2]"
     end
 end
 
 # fish concatenates a command substitution with an adjacent literal, so this is a
-# millisecond stamp without relying on `date +%N`, which uutils coreutils — the
-# default on this distro — does not accept a width for.
+# millisecond stamp without relying on `date +%N`, which uutils coreutils - the
+# default on this distro - does not accept a width for.
 set -l now (date +%s)000
 
 set -l present_json '[]'
 test (count $present) -gt 0; and set present_json '["'(string join '","' $present)'"]'
 
 # Record bodies arrive on stdin, one JSON object per record, in the same order as
-# $extras — so a record's position is enough to pair it with what was worked out
+# $extras - so a record's position is enough to pair it with what was worked out
 # for it above.
 printf '%s\n' $bodies | jq -n \
     --argjson now $now \

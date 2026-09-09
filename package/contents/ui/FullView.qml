@@ -17,21 +17,31 @@ Item {
     readonly property bool loaded: widget ? widget.everLoaded : false
     readonly property bool censored: widget ? widget.censored : false
 
-    readonly property int maxHeight: Kirigami.Units.gridUnit * plasmoid.configuration.maxPopupHeight
+    // A collapsed row, near enough. The setting reads "this many sessions", so
+    // erring a little generous means the count you pick always fits rather than
+    // landing a pixel short and scrolling.
+    readonly property real nominalRow: Kirigami.Units.gridUnit * 2 + Kirigami.Units.smallSpacing * 2
+    readonly property real maxHeight: header.implicitHeight + footer.implicitHeight
+                                      + nominalRow * plasmoid.configuration.maxSessions
+
+    readonly property real wantedHeight: Math.min(maxHeight,
+                                                  header.implicitHeight
+                                                  + (full.shown.length > 0
+                                                     ? list.contentHeight + Kirigami.Units.smallSpacing * 2
+                                                     : Kirigami.Units.gridUnit * 7)
+                                                  + footer.implicitHeight)
 
     Layout.minimumWidth: Kirigami.Units.gridUnit * 17
-    Layout.minimumHeight: Kirigami.Units.gridUnit * 8
     Layout.preferredWidth: Kirigami.Units.gridUnit * 25
-    Layout.maximumHeight: maxHeight
 
-    // The popup is as tall as its sessions need and no taller, up to the ceiling
-    // in settings — past which the list scrolls instead of the window growing.
-    Layout.preferredHeight: Math.min(maxHeight,
-                                     header.implicitHeight
-                                     + (full.shown.length > 0
-                                        ? list.contentHeight + Kirigami.Units.smallSpacing * 2
-                                        : Kirigami.Units.gridUnit * 7)
-                                     + footer.implicitHeight)
+    // Minimum, preferred and maximum all the same number. The popup is exactly as
+    // tall as its sessions need, up to the ceiling in settings, and pinning all
+    // three is what stops Plasma remembering a height the user dragged it to.
+    // That remembered height was overriding the setting and leaving the popup
+    // stuck at whatever size it had last been.
+    Layout.minimumHeight: wantedHeight
+    Layout.preferredHeight: wantedHeight
+    Layout.maximumHeight: wantedHeight
 
     CopyToast {
         notice: full.widget ? full.widget.copyNotice : ""

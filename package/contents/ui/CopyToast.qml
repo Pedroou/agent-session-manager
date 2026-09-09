@@ -6,7 +6,7 @@ import org.kde.kirigami as Kirigami
 // Confirmation that something reached the clipboard.
 //
 // It floats over the list rather than sitting in the layout, so a copy never
-// reflows the popup underneath the pointer — and it says *what* was copied,
+// reflows the popup underneath the pointer - and it says *what* was copied,
 // because with several copy targets on one row "Copied" alone leaves you
 // wondering which one you hit.
 //

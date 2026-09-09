@@ -7,7 +7,7 @@
 # through stdin rather than argv, so it does not show up in the process list.
 #
 # This is a Claude Code internal, not documented API. It is called at most once
-# every few minutes — plan limits move slowly — and a failure is reported as a
+# every few minutes - plan limits move slowly - and a failure is reported as a
 # state rather than left to look like zero usage.
 #
 # Environment overrides (used by the test suite):
@@ -55,7 +55,7 @@ function __cu_profile -a id dir endpoint
         # process on the machine could read it.
         # --fail matters: without it a 429 or a 500 comes back as a JSON error
         # object, which has no `limits` key and so parsed cleanly as "this plan
-        # has no limits" — a rate-limited request looked exactly like an empty
+        # has no limits" - a rate-limited request looked exactly like an empty
         # plan. With it, curl writes nothing and this reports the failure.
         set body (printf 'url = "%s"\nheader = "Authorization: Bearer %s"\nheader = "anthropic-beta: oauth-2025-04-20"\nheader = "Content-Type: application/json"\n' \
             $endpoint $token | curl --silent --show-error --fail --max-time 8 --config - 2>/dev/null | string collect)
@@ -67,7 +67,7 @@ function __cu_profile -a id dir endpoint
     end
 
     # `limits[]` already carries percent, severity and reset time per limit, and
-    # names the model a scoped limit belongs to — so the bars on offer are
+    # names the model a scoped limit belongs to - so the bars on offer are
     # whatever the plan actually has, not a hardcoded three.
     echo $body | jq -c --arg id $id '
         # A body with no `limits` array at all is an error object, not a plan

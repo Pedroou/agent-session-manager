@@ -28,12 +28,12 @@ var STATE_NOUNS = {
 // but it disappears into a dark blue panel, which is the whole reason these
 // stopped being theme colours.
 var DEFAULT_COLORS = {
-    waiting: "#f97316", // orange — a person has to do something
-    error: "#ef4444", // red — the long-standing meaning, worth not reinventing
-    running: "#eab308", // yellow — busy, but nobody is being waited on
-    working: "#06b6d4", // cyan — active, and the one that had to leave blue
-    shell: "#94a3b8", // slate — a real state, but not one to shout about
-    done: "#22c55e", // green — finished
+    waiting: "#f97316", // orange - a person has to do something
+    error: "#ef4444", // red - the long-standing meaning, worth not reinventing
+    running: "#eab308", // yellow - busy, but nobody is being waited on
+    working: "#06b6d4", // cyan - active, and the one that had to leave blue
+    shell: "#94a3b8", // slate - a real state, but not one to shout about
+    done: "#22c55e", // green - finished
     unknown: "#94a3b8"
 }
 
@@ -41,13 +41,13 @@ function defaultColor(state) {
     return DEFAULT_COLORS[state] || DEFAULT_COLORS.unknown
 }
 
-// Bars are all one height. Colour alone carries the state — a deliberate choice
+// Bars are all one height. Colour alone carries the state - a deliberate choice
 // to keep the panel from looking like a jagged little chart.
 function railFraction() {
     return 1.0
 }
 
-// "12s", "4m", "1h 20m", "2d 3h" — the coarsest unit that still says something.
+// "12s", "4m", "1h 20m", "2d 3h" - the coarsest unit that still says something.
 function age(sinceMs, nowMs) {
     if (!sinceMs) {
         return ""
@@ -106,7 +106,7 @@ function tooltipLines(counts) {
 
 // The state that decides the widget's overall tone.
 //
-// Anything blocked on a person wins outright, however few — that is the question
+// Anything blocked on a person wins outright, however few - that is the question
 // the panel exists to answer. Failing that it is simply the biggest group, with
 // ties broken by which state is more urgent.
 function dominantState(counts) {
@@ -186,7 +186,7 @@ function context(session, showProfile, censored) {
     if (session.detail) {
         bits.push(session.detail)
     }
-    return bits.join(" — ")
+    return bits.join(" - ")
 }
 
 function label(key, settings, shortKey) {
@@ -196,7 +196,7 @@ function label(key, settings, shortKey) {
 // The rows behind an expanded session, in the order they are read: who, how
 // long, where, then the identifiers you would otherwise dig out of `ps`.
 //
-// A row with no value never appears — a session outside a git repository simply
+// A row with no value never appears - a session outside a git repository simply
 // has no Repository line rather than an empty one.
 function detailRows(session, settings, nowMs, censored) {
     var s = settings || {}
@@ -259,7 +259,7 @@ function shellQuote(text) {
 
 // Everything on screen for one session, as plain text worth pasting somewhere.
 function detailsAsText(session, settings, nowMs, nicknames, censored) {
-    var lines = [displayName(session, nicknames, censored) + " — " + session.label]
+    var lines = [displayName(session, nicknames, censored) + " - " + session.label]
     var second = context(session, true, censored)
     if (second) {
         lines.push(second)

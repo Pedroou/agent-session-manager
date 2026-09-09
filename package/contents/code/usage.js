@@ -76,7 +76,7 @@ function stateMessage(profile) {
     case "absent":
         return "Not signed in"
     case "expired":
-        return "Signed out — run claude to sign back in"
+        return "Signed out - run claude to sign back in"
     default:
         return "Couldn't reach the usage API"
     }
@@ -102,7 +102,7 @@ function selectableProfiles(usage) {
 }
 
 // The bar the panel strip tracks: whichever profile the footer has selected, and
-// whichever limit was chosen for it — so the panel and the popup never disagree
+// whichever limit was chosen for it - so the panel and the popup never disagree
 // about what is being measured.
 function panelBar(usage, profileId, barId) {
     return barFor(profileById(usage, profileId), barId)
@@ -121,7 +121,7 @@ function pastThreshold(bar, threshold) {
 //
 // The endpoint is an undocumented internal and it rate-limits; a 429 or a
 // dropped connection used to blank a bar that was correct a minute ago. Only an
-// `error` is papered over — `absent` and `expired` are real answers about the
+// `error` is papered over - `absent` and `expired` are real answers about the
 // account, and hiding those behind a stale bar would be a lie rather than a
 // kindness.
 function merge(previous, fresh) {

@@ -32,7 +32,7 @@ PlasmoidItem {
     // collapsed rather than showing whatever was left expanded.
     signal collapseAll()
 
-    // Which sessions are open, and which one is being renamed — keyed by session
+    // Which sessions are open, and which one is being renamed - keyed by session
     // id rather than kept inside the row.
     //
     // The collector sorts by state, so a session changing status reorders the
@@ -175,7 +175,7 @@ PlasmoidItem {
     }
 
     // The endpoint rate-limits, and plan limits move slowly. Opening the popup
-    // asks for a reading, but no more often than this — otherwise a habit of
+    // asks for a reading, but no more often than this - otherwise a habit of
     // opening and closing the widget is enough to get you throttled, and the
     // punishment lands as an empty bar.
     readonly property int usageMinGapMs: 60000
@@ -216,7 +216,7 @@ PlasmoidItem {
     // SIGTERM is the graceful path: Claude Code registers a handler for it that
     // runs its own shutdown, so the session closes the way it would if you shut
     // the terminal. The transcript is on disk either way, and `claude --resume`
-    // picks it back up — which is what right-clicking the row copies.
+    // picks it back up - which is what right-clicking the row copies.
     function endSession(pid) {
         actions.connectSource("kill -TERM " + parseInt(pid, 10))
     }
@@ -263,8 +263,8 @@ PlasmoidItem {
         collector.connectSource("'" + collectorPath.replace(/'/g, "'\\''") + "'")
     }
 
-    // Poll faster while the popup is open — that is the only time a stale second
-    // is actually visible — and back off to the configured interval when closed.
+    // Poll faster while the popup is open - that is the only time a stale second
+    // is actually visible - and back off to the configured interval when closed.
     Timer {
         interval: root.expanded ? 1000 : Math.max(1, plasmoid.configuration.refreshInterval) * 1000
         running: true

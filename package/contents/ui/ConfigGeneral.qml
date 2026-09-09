@@ -25,7 +25,7 @@ KCM.SimpleKCM {
     property bool cfg_panelUsage: true
     property int cfg_panelUsageThreshold: 0
     property bool cfg_panelUsageColour: true
-    property int cfg_maxPopupHeight: 21
+    property int cfg_maxSessions: 5
     property bool cfg_showDone: true
     property bool cfg_showUsage: true
     property bool cfg_detailRepository: true
@@ -58,7 +58,7 @@ KCM.SimpleKCM {
         page.cfg_panelUsageThreshold = 0
         page.cfg_panelUsageColour = true
 
-        page.cfg_maxPopupHeight = 21
+        page.cfg_maxSessions = 5
         page.cfg_showDone = true
         page.cfg_showUsage = true
         page.cfg_detailRepository = true
@@ -134,7 +134,7 @@ KCM.SimpleKCM {
         }
 
         // Last, and set apart. Plasma's applet dialog has no Defaults button of its
-        // own, so the widget provides one — and a control that undoes every page
+        // own, so the widget provides one - and a control that undoes every page
         // belongs at the end of the first page, not competing with the settings it
         // would throw away.
         Item {

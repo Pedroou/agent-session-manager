@@ -9,8 +9,8 @@ set -g PASS 0
 set -g FAIL 0
 
 # Tripwire: this suite must never write into the real session registry. Its
-# mtimes move on their own — every live Claude Code session rewrites its record
-# every few seconds — so the check is that none of the pids this suite invents
+# mtimes move on their own - every live Claude Code session rewrites its record
+# every few seconds - so the check is that none of the pids this suite invents
 # ever turn up there. Captured before `setup` overrides $HOME; never hardcode a
 # home path, or the check has nothing to look at.
 function __registry_records -a home
@@ -413,7 +413,7 @@ set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
 jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude/.credentials.json
 # What the API actually returns when it rate-limits you. It parses cleanly and
 # has no `limits` key, so without a type check it read as "this plan has no
-# limits" — the widget would quietly show nothing instead of saying it failed.
+# limits" - the widget would quietly show nothing instead of saying it failed.
 echo '{"error": {"type": "rate_limit_error", "message": "rate limited"}}' >$ROOT/usage.json
 set -l out ($USAGE)
 check "an error body is reported as an error" error (echo $out | jq -r '.profiles[] | select(.id=="work") | .state')
@@ -430,12 +430,12 @@ set -l leaked (__registry_records $REAL_HOME | string match -r '40[0-9]{2}\.json
 check "no sandbox pid was written to the real registry" "" "$leaked"
 # A record going missing is only suspicious if its session is still running.
 # Claude Code removes its own record when a session exits, and sessions exit
-# while this suite runs — the first version of this check flagged that as a leak
+# while this suite runs - the first version of this check flagged that as a leak
 # and failed for a reason that had nothing to do with the code under test.
 check "no live session lost its record" "" (
     for f in (string split ' ' -- "$REAL_BEFORE")
         test -n "$f"; or continue
-        # Both profiles, because the snapshot covers both — looking only in the
+        # Both profiles, because the snapshot covers both - looking only in the
         # work profile reported every personal session as a deleted record.
         test -e $REAL_HOME/.claude/sessions/$f; and continue
         test -e $REAL_HOME/.claude-personal/sessions/$f; and continue

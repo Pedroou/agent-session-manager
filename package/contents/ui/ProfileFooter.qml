@@ -7,7 +7,7 @@ import org.kde.kirigami as Kirigami
 import "../code/usage.js" as Usage
 
 // How much of the plan each account has used. Collapsed it shows the one profile
-// you picked; expanded, both — because the reason to open it is to compare them.
+// you picked; expanded, both - because the reason to open it is to compare them.
 ColumnLayout {
     id: footer
 
@@ -23,7 +23,7 @@ ColumnLayout {
     readonly property var profiles: Usage.selectableProfiles(usage)
 
     // Both chevrons on a row measure from here. One is a bare icon and the other
-    // is a button's icon, which are sized by different rules — so the size is
+    // is a button's icon, which are sized by different rules - so the size is
     // stated once rather than twice in units that happen to disagree.
     readonly property real chevron: Kirigami.Units.iconSizes.small
 
@@ -108,7 +108,7 @@ ColumnLayout {
                 anchors.verticalCenter: parent.verticalCenter
                 // Matched to SessionRow's own margins so the footer lines up with
                 // the list above it. The left used to be smallSpacing, which was
-                // an oversight rather than a decision — it left the chevron 4px
+                // an oversight rather than a decision - it left the chevron 4px
                 // adrift of the rails it sits under.
                 anchors.leftMargin: Kirigami.Units.largeSpacing
                 anchors.rightMargin: Kirigami.Units.largeSpacing + footer.scrollbarInset

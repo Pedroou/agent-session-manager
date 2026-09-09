@@ -1,7 +1,7 @@
 // Tests for the widget's pure display layer.
 //   node --test plasmoid/test/sessions.test.js
 //
-// The QML side is deliberately thin — it binds these results to components — so
+// The QML side is deliberately thin - it binds these results to components - so
 // everything with a decision in it is checked here without a running Plasma shell.
 
 const test = require("node:test")
@@ -150,10 +150,10 @@ test("a nickname replaces the name, and censoring replaces both", () => {
 test("the row's second line says where the session is and what it wants", () => {
     assert.equal(
         Sessions.context(session({detail: "input needed"}), false, false),
-        "checkout-flow — input needed")
+        "checkout-flow - input needed")
     assert.equal(
         Sessions.context(session({profile: "personal", detail: ""}), true, false),
-        "personal — checkout-flow")
+        "personal - checkout-flow")
     assert.equal(Sessions.context(session({detail: ""}), false, false), "checkout-flow")
 })
 
@@ -234,8 +234,8 @@ test("a path with a space or a quote in it is still a safe command", () => {
 test("copying an expanded session gives you everything on screen", () => {
     const text = Sessions.detailsAsText(session({detail: "input needed"}), {}, NOW, {}, false)
     const lines = text.split("\n")
-    assert.equal(lines[0], "checkout-flow-7 — Working")
-    assert.equal(lines[1], "work — checkout-flow — input needed")
+    assert.equal(lines[0], "checkout-flow-7 - Working")
+    assert.equal(lines[1], "work - checkout-flow - input needed")
     assert.ok(lines.includes("Repository: checkout-flow/main"))
     assert.ok(lines.includes("Session: abc-123"))
 })

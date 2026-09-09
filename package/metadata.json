@@ -11,7 +11,9 @@
         "Website": "https://github.com/Pedroou/claude-sessions-widget",
         "Authors": [
             {
-                "Name": "Pedro"
+                "Name": "Pedro",
+                "Email": "",
+                "Website": "https://github.com/Pedroou"
             }
         ],
         "BugReportUrl": "https://github.com/Pedroou/claude-sessions-widget/issues"
