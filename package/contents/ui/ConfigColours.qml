@@ -30,7 +30,7 @@ KCM.SimpleKCM {
     Kirigami.FormLayout {
         QQC2.CheckBox {
             id: customColors
-            Kirigami.FormData.label: i18n("Status colours:")
+            Kirigami.FormData.label: i18n("Status Colours:")
             text: i18n("Customize")
         }
 
@@ -40,6 +40,10 @@ KCM.SimpleKCM {
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
             text: i18n("Turning this off goes back to the built-in colours.")
+        }
+
+            Item {
+            Kirigami.FormData.isSection: true
         }
 
         // Hidden rather than disabled while the box is unticked: leaving the pickers

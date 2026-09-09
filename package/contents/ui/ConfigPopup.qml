@@ -28,7 +28,7 @@ KCM.SimpleKCM {
     Kirigami.FormLayout {
         QQC2.SpinBox {
             id: popupHeight
-            Kirigami.FormData.label: i18n("Popup max height:")
+            Kirigami.FormData.label: i18n("Popup Max Height:")
             from: 3
             to: 25
             stepSize: 1
@@ -77,7 +77,7 @@ KCM.SimpleKCM {
 
         QQC2.CheckBox {
             id: detailRepository
-            Kirigami.FormData.label: i18n("Row details:")
+            Kirigami.FormData.label: i18n("Row Details:")
             text: i18n("Repository")
         }
 
@@ -115,7 +115,7 @@ KCM.SimpleKCM {
 
         QQC2.ComboBox {
             id: branchPlacement
-            Kirigami.FormData.label: i18n("Branch display:")
+            Kirigami.FormData.label: i18n("Branch Display:")
             enabled: detailBranch.checked
             textRole: "label"
             valueRole: "value"

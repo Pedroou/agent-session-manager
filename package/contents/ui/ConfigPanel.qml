@@ -23,13 +23,17 @@ KCM.SimpleKCM {
     Kirigami.FormLayout {
         QQC2.CheckBox {
             id: showTotal
-            Kirigami.FormData.label: i18n("Session count:")
+            Kirigami.FormData.label: i18n("Total Session Count:")
             text: i18n("Show the number beside the bars")
+        }
+
+        Item {
+            Kirigami.FormData.isSection: true
         }
 
         QQC2.SpinBox {
             id: countScale
-            Kirigami.FormData.label: i18n("Number size:")
+            Kirigami.FormData.label: i18n("Count Number Size:")
             enabled: showTotal.checked
             from: 60
             to: 200
@@ -48,10 +52,15 @@ KCM.SimpleKCM {
 
         QQC2.CheckBox {
             id: panelUsage
-            Kirigami.FormData.label: i18n("Plan usage:")
+            Kirigami.FormData.label: i18n("Plan Usage Bar:")
             text: i18n("Show a usage bar under the session bars")
         }
 
+        QQC2.CheckBox {
+            id: panelUsageColour
+            enabled: panelUsage.checked
+            text: i18n("Bar colour based on usage level")
+        }
         QQC2.Label {
             Layout.maximumWidth: Kirigami.Units.gridUnit * 20
             wrapMode: Text.WordWrap
@@ -59,10 +68,21 @@ KCM.SimpleKCM {
             color: Kirigami.Theme.disabledTextColor
             text: i18n("Tracks the same limit and profile the popup's usage bar is set to.")
         }
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            color: Kirigami.Theme.disabledTextColor
+            text: i18n("Green < amber < red - same as popup thresholds.")
+        }
+
+        Item {
+            Kirigami.FormData.isSection: true
+        }
 
         QQC2.ComboBox {
             id: threshold
-            Kirigami.FormData.label: i18n("When:")
+            Kirigami.FormData.label: i18n("Show When:")
             enabled: panelUsage.checked
             textRole: "label"
             valueRole: "value"
@@ -92,18 +112,6 @@ KCM.SimpleKCM {
             }
         }
 
-        QQC2.CheckBox {
-            id: panelUsageColour
-            enabled: panelUsage.checked
-            text: i18n("Colour based on usage level")
-        }
 
-        QQC2.Label {
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
-            wrapMode: Text.WordWrap
-            font: Kirigami.Theme.smallFont
-            color: Kirigami.Theme.disabledTextColor
-            text: i18n("Green < amber < red - same as popup thresholds.")
-        }
     }
 }

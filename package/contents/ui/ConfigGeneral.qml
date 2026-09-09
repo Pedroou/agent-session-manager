@@ -90,7 +90,7 @@ KCM.SimpleKCM {
 
         QQC2.SpinBox {
             id: interval
-            Kirigami.FormData.label: i18n("Check every:")
+            Kirigami.FormData.label: i18n("Check Every:")
             from: 1
             to: 60
             stepSize: 1
