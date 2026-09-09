@@ -37,6 +37,15 @@ function __kpt
     return $pipestatus[1]
 end
 
+# The icon has to live in an icon theme, not just in the package. A package's
+# own icons/ directory is not on the icon search path, so the name fell through
+# KDE's dash-suffix fallback - "com.claudeaccmanager.claudesessions" has no
+# dashes precisely so it cannot degrade into somebody else's "claude" icon.
+set -l icon_dir $HOME/.local/share/icons/hicolor/scalable/apps
+mkdir -p $icon_dir
+cp $package/contents/icons/com.claudeaccmanager.claudesessions.svg $icon_dir/
+echo "→ Icon installed to $icon_dir"
+
 if contains -- $id (__kpt --list | string trim)
     echo "→ Updating $id"
     __kpt --upgrade $package

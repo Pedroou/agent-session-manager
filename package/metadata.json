@@ -3,8 +3,8 @@
     "KPlugin": {
         "Id": "com.claudeaccmanager.claudesessions",
         "Name": "Claude Sessions",
-        "Description": "Shows which of your running Claude Code chats are working, waiting on you, or done",
-        "Icon": "claude-sessions",
+        "Description": "Track the status of running Claude Code sessions - working, waiting on you, or done - along with your plan's usage limits.",
+        "Icon": "com.claudeaccmanager.claudesessions",
         "Category": "System Information",
         "License": "MIT",
         "Version": "1.0.0",

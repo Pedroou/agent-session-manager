@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- The widget itself, at icon size: one bar per session in the status colours
+       it actually uses, over the plan-usage strip. Deliberately not a monochrome
+       glyph - this is the application icon, and the colours are the product. -->
+  <rect width="48" height="48" rx="10" fill="#141617"/>
+  <g>
+    <rect x="8"  y="12" width="4" height="20" rx="2" fill="#f97316"/>
+    <rect x="15" y="12" width="4" height="20" rx="2" fill="#ef4444"/>
+    <rect x="22" y="12" width="4" height="20" rx="2" fill="#eab308"/>
+    <rect x="29" y="12" width="4" height="20" rx="2" fill="#06b6d4"/>
+    <rect x="36" y="12" width="4" height="20" rx="2" fill="#22c55e"/>
+  </g>
+  <rect x="8" y="36" width="32" height="3.5" rx="1.75" fill="#ffffff" opacity="0.22"/>
+  <rect x="8" y="36" width="19"   height="3.5" rx="1.75" fill="#22c55e"/>
+</svg>
