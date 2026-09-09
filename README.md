@@ -48,6 +48,8 @@ doing, so a glance is enough.
 <img src="docs/screenshots/panel.png" alt="Five coloured bars with a usage strip beneath and the session count beside them" width="230">
 </div>
 
+<div align="center">
+
 | | State | Meaning |
 |:--:|---|---|
 | <img src="docs/screenshots/chips/error.png" alt="" width="34"> | **Error** | its last turn failed, and the message is shown |
@@ -56,6 +58,8 @@ doing, so a glance is enough.
 | <img src="docs/screenshots/chips/working.png" alt="" width="34"> | **Working** | Claude is generating |
 | <img src="docs/screenshots/chips/shell.png" alt="" width="34"> | **Shell** | the terminal has been handed to a shell |
 | <img src="docs/screenshots/chips/done.png" alt="" width="34"> | **Done** | finished, waiting for your next prompt |
+
+</div>
 
 The number beside the bars is the session count, coloured by whichever state has
 the most sessions - unless something is waiting on you, which always takes
@@ -159,18 +163,8 @@ half-written record, an MCP child that is not a command, and a command starting
 with `--` that `jq` would otherwise eat as a flag are covered rather than
 assumed.
 
-[`docs/design.md`](docs/design.md) is the full write-up.
-
-## Known limitations
-
-- **Subagents look like thinking.** Bash calls are visible in the process tree;
-  subagents run inside the process and leave no trace, so a session working
-  through one reads as **Working** rather than **Running**.
-- **No interrupt button.** Claude Code reads Ctrl+C as a byte off a raw-mode
-  terminal, and its `SIGINT` handler calls the same `shutdown(0)` as `SIGTERM`.
-  A signal can end a session but cannot pause one, so ending is all that is
-  offered.
-- **Linux only**, since it reads `/proc`. Which a Plasma panel rather implies.
+[`docs/design.md`](docs/design.md) is the full write-up, and
+[`docs/limitations.md`](docs/limitations.md) is honest about what it cannot do.
 
 ## Privacy
 
