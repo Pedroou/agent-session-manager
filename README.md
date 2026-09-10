@@ -63,7 +63,8 @@ doing, so a glance is enough.
 
 The number beside the bars is the session count, coloured by whichever state has
 the most sessions - unless something is waiting on you, which always takes
-priority. Underneath sits a thin bar for your plan usage.
+priority. Underneath sits a thin bar for your plan usage, which turns amber
+and then red as the limit fills.
 
 ## The popup
 
@@ -82,9 +83,19 @@ copies the whole row, or the command to drop back into that session.
 </tr>
 </table>
 
+<div align="center">
+<img src="docs/screenshots/copy.gif" alt="A session opened, one of its values clicked to copy it, then the whole row right-clicked" width="660">
+<p><sub>Open a session, click a value to copy it, or right-click for all of it</sub></p>
+</div>
+
 Hovering a row gives you a pencil, to rename it to something you will recognise,
 and a close button that asks before ending the session. The eye in the header
 blanks every name and path for screen-sharing.
+
+<div align="center">
+<img src="docs/screenshots/actions.gif" alt="A session being renamed in the widget, then another one ended" width="660">
+<p><sub>Rename one, or end one - the second click is the confirmation</sub></p>
+</div>
 
 ## Plan usage
 
@@ -93,7 +104,8 @@ one tracks - session, weekly, or a model-scoped one - and the panel bar follows
 whichever you chose.
 
 <div align="center">
-<img src="docs/screenshots/popup-usage.png" alt="Both profiles' usage bars, expanded" width="520">
+<img src="docs/screenshots/usage.gif" alt="The usage footer opened to show both accounts, their bars sliding between readings and changing colour" width="660">
+<p><sub>Both accounts at once, green to amber to red as the limit fills</sub></p>
 </div>
 
 ## Install
