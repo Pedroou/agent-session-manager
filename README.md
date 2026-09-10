@@ -72,20 +72,9 @@ Click the widget for the full list, sorted so whatever is blocked sits at the
 top. Click a row to open its details; click any value to copy it. Right-click
 copies the whole row, or the command to drop back into that session.
 
-<table>
-<tr>
-<td width="50%"><img src="docs/screenshots/popup.png" alt="The session list"></td>
-<td width="50%"><img src="docs/screenshots/popup-expanded.png" alt="A session expanded to show its details"></td>
-</tr>
-<tr>
-<td align="center"><sub>Every session, worst first</sub></td>
-<td align="center"><sub>One session, opened up</sub></td>
-</tr>
-</table>
-
 <div align="center">
 <img src="docs/screenshots/copy.gif" alt="A session opened, one of its values clicked to copy it, then the whole row right-clicked" width="660">
-<p><sub>Open a session, click a value to copy it, or right-click for all of it</sub></p>
+<p><sub>Every session worst first, one of them opened up, and a value copied out of it</sub></p>
 </div>
 
 Hovering a row gives you a pencil, to rename it to something you will recognise,
