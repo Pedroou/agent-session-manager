@@ -38,9 +38,8 @@ doing, so a glance is enough.
 - **A popup with the details** - directory, git repository and branch, uptime,
   session id, pid. Click any value to copy it.
 - **Your plan usage**, per account, for whichever limit you care about.
-- **As many accounts as you run.** Claude Code switches accounts with
-  `CLAUDE_CONFIG_DIR`, which takes any path, so the widget asks where yours are
-  rather than guessing: search a directory for them, or name one outright.
+- **Multiple account profiles.** Claude Code switches accounts with
+  `CLAUDE_CONFIG_DIR`, which takes any path.
 - **Native Plasma theming**, with every status colour overridable.
 
 ## Reading the panel
