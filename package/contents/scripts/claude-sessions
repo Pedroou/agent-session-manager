@@ -21,6 +21,7 @@
 # idle sessions pay for a transcript read, and only busy ones for a /proc walk.
 #
 # Environment overrides (used by the test suite):
+#   CLAUDE_PROFILES          JSON array of {name, dir} to read, in order
 #   CLAUDE_SESSIONS_PROC     root to look for <pid>/... under, default /proc
 #   CLAUDE_SESSIONS_NO_ERROR set to skip the transcript scan entirely
 #
@@ -29,9 +30,32 @@
 set -l proc_root /proc
 test -n "$CLAUDE_SESSIONS_PROC"; and set proc_root $CLAUDE_SESSIONS_PROC
 
-# Derived per run, never cached at load time: the test suite moves $HOME.
-set -l profile_ids work personal
-set -l profile_dirs $HOME/.claude $HOME/.claude-personal
+# Which config directories to read, and what to call each one.
+#
+# Claude Code's own mechanism for a second account is $CLAUDE_CONFIG_DIR, which
+# takes any path at all - so there is no set of directories to hardcode, and the
+# widget hands over the list the user configured. Derived per run, never cached
+# at load time: the test suite moves $HOME.
+set -l profile_names
+set -l profile_dirs
+if test -n "$CLAUDE_PROFILES"
+    # One jq, two lines per profile. Reading names and directories in separate
+    # calls would double the only fork this parsing costs.
+    set -l flat (echo $CLAUDE_PROFILES | jq -r '.[] | (.name // ""), (.dir // "")' 2>/dev/null)
+    for i in (seq 1 2 (count $flat))
+        set -l dir $flat[(math $i + 1)]
+        test -n "$dir"; or continue
+        set -a profile_names $flat[$i]
+        set -a profile_dirs (string replace -r '^~' $HOME -- $dir)
+    end
+end
+# Nothing configured: the directory Claude Code keeps its own account in, so
+# running this by hand still shows something. Only that one - any other path is
+# somebody's choice, and guessing at it is what this replaced.
+if test (count $profile_dirs) -eq 0
+    set profile_names default
+    set profile_dirs $HOME/.claude
+end
 
 # Is `pid` still the same process that wrote this record?
 #
@@ -188,9 +212,13 @@ set -l bodies
 set -l extras # index-aligned with $bodies: the fields worked out here
 set -l present
 
-for i in (seq (count $profile_ids))
-    set -l id $profile_ids[$i]
+for i in (seq (count $profile_dirs))
+    set -l id $profile_names[$i]
     set -l dir $profile_dirs[$i]
+    # The stock directory is the one place $CLAUDE_CONFIG_DIR must never be set
+    # to, so a session from it gets a plain `claude --resume`.
+    set -l is_default false
+    test "$dir" = "$HOME/.claude"; and set is_default true
     test -d $dir; and set -a present $id
 
     for record in $dir/sessions/*.json
@@ -234,7 +262,8 @@ for i in (seq (count $profile_ids))
         # Every value carries a leading ":" because jq still reads an argument
         # beginning with "-" as an option, even after --args - and a command line
         # or an error message can quite reasonably start with one. jq strips it.
-        set -a extras ":$id" ":$overlay" ":$detail" ":$git_info[1]" ":$git_info[2]"
+        set -a extras ":$id" ":$overlay" ":$detail" ":$git_info[1]" ":$git_info[2]" \
+            ":$dir" ":$is_default"
     end
 end
 
@@ -262,15 +291,17 @@ printf '%s\n' $bodies | jq -n \
     def rank($st):
         {waiting: 0, error: 1, running: 2, working: 3, shell: 4, done: 5}[$st] // 6;
 
-    # Five positional arguments per session, in the order the records were read,
-    # each with the sentinel ":" the caller prefixed.
+    # Seven positional arguments per session, in the order the records were
+    # read, each with the sentinel ":" the caller prefixed.
     def arg($i): ($ARGS.positional[$i] // ":") | .[1:];
     def extras($i): {
-        profile:      (arg($i * 5)     | if . == "" then "work" else . end),
-        overlay:       arg($i * 5 + 1),
-        overlayDetail: arg($i * 5 + 2),
-        repository:    arg($i * 5 + 3),
-        branch:        arg($i * 5 + 4)
+        profile:      (arg($i * 7)     | if . == "" then "work" else . end),
+        overlay:       arg($i * 7 + 1),
+        overlayDetail: arg($i * 7 + 2),
+        repository:    arg($i * 7 + 3),
+        branch:        arg($i * 7 + 4),
+        profileDir:    arg($i * 7 + 5),
+        profileDefault: (arg($i * 7 + 6) == "true")
     };
 
     [inputs] | to_entries | map(
@@ -284,6 +315,8 @@ printf '%s\n' $bodies | jq -n \
         | {
             pid:             ($r.pid // 0),
             profile:         ($x.profile // "work"),
+            profileDir:      ($x.profileDir // ""),
+            profileDefault:  $x.profileDefault,
             name:            ($r.name // $parts[-1] // "session"),
             cwd:             ($r.cwd // ""),
             dir:             ($parts[-1] // "/"),

@@ -11,6 +11,10 @@
   A signal can end a session but cannot pause one, so ending is all that is
   offered.
 - **Linux only**, since it reads `/proc`. Which a Plasma panel rather implies.
+- **Accounts are found, not watched.** The Accounts page searches when you ask
+  it to, and never on its own - otherwise an account you removed from the list
+  would come back by itself. A new one you create later is a search away, not
+  automatic.
 
 None of these are oversights. Each is a place where the thing the widget wants to
 know is not observable from outside the process, and guessing would have been

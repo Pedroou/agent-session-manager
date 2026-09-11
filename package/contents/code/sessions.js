@@ -242,9 +242,18 @@ function detailRows(session, settings, nowMs, censored) {
 
 // The command that reopens a session in a new terminal. `claude --resume <id>`
 // from its own directory is the one that actually lands you back in it.
+//
+// A session from a second account needs that account's config directory, and
+// $CLAUDE_CONFIG_DIR is how Claude Code itself is told - so this works whatever
+// the user called the account and wherever they put it. The stock directory is
+// the one value it must never be set to, which is what profileDefault marks.
 function resumeCommand(session) {
-    var launcher = session.profile === "personal" ? "claude-personal" : "claude"
-    return "cd " + shellQuote(session.cwd) + " && " + launcher + " --resume " + session.sessionId
+    var prefix = ""
+    if (session.profileDir && session.profileDefault === false) {
+        prefix = "CLAUDE_CONFIG_DIR=" + shellQuote(session.profileDir) + " "
+    }
+    return "cd " + shellQuote(session.cwd) + " && " + prefix
+           + "claude --resume " + session.sessionId
 }
 
 function shellQuote(text) {

@@ -1,0 +1,64 @@
+#!/usr/bin/env -S fish --no-config
+# Look for Claude Code config directories under a path, one level down.
+#
+# There is no standard place to keep a second account: $CLAUDE_CONFIG_DIR takes
+# any path, and the convention people land on is a sibling of the stock
+# directory - ~/.claude-work, ~/.claude-personal - so the home directory is
+# where this looks unless told otherwise.
+#
+# A path that is itself a config directory returns just itself, so the same
+# script answers both "find the accounts under here" and "is this one an
+# account?" - which is what the settings page needs to check a path typed by
+# hand before it puts it in the list.
+#
+# Prints a JSON array of {dir, name}. The name is a first guess for the widget's
+# list, which the user can rename; the directory is what identifies it.
+#
+# Usage: claude-find-profiles [path]
+
+set -l root $HOME
+test (count $argv) -gt 0 -a -n "$argv[1]"; and set root $argv[1]
+set root (string replace -r '^~' $HOME -- $root)
+# A trailing slash would make the home directory fail the comparison below.
+set root (string replace -r '(.)/+$' '$1' -- $root)
+
+# Claude Code has written one of its own two files into every directory it
+# owns. Both names are specific enough not to be anything else, and between them
+# they cover a directory that has been logged into and one that has only been
+# run.
+function __cfp_is_profile -a dir
+    # Never the home directory itself. The stock profile keeps its .claude.json
+    # *beside* ~/.claude rather than inside it, so home carries the marker
+    # without being an account - and searching home, which is the default, would
+    # otherwise turn up home.
+    test "$dir" = "$HOME"; and return 1
+    test -f $dir/.claude.json -o -f $dir/.credentials.json
+end
+
+set -l candidates
+if __cfp_is_profile $root
+    set candidates $root
+else
+    for entry in (find $root -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+        __cfp_is_profile $entry; and set -a candidates $entry
+    end
+end
+
+set -l parts
+for entry in $candidates
+    # ".claude-personal" reads better as "personal" once it is sitting in a list
+    # of accounts; the stock directory has nothing left after the same trim, and
+    # "default" says what it is.
+    set -l name (string replace -r '^\.+' '' -- (path basename $entry))
+    set -l trimmed (string replace -r '^claude[-_.]?' '' -- $name)
+    test -n "$trimmed"; and set name $trimmed
+    test "$entry" = "$HOME/.claude"; and set name default
+
+    set -a parts (jq -n -c --arg dir "$entry" --arg name "$name" '{dir: $dir, name: $name}')
+end
+
+if test (count $parts) -eq 0
+    echo '[]'
+else
+    printf '%s\n' $parts | jq -s -c '.'
+end

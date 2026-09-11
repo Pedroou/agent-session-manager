@@ -36,6 +36,11 @@ function setup
     set -gx CLAUDE_SESSIONS_PROC $ROOT/proc
     set -e CLAUDE_SESSIONS_NO_ERROR
     mkdir -p $ROOT/.claude/sessions $ROOT/.claude-personal/sessions $ROOT/proc
+    # The two accounts most of this suite was written against, configured the
+    # way the widget configures them. Task 27 unsets this to check what happens
+    # when nothing is.
+    set -gx CLAUDE_PROFILES '[{"name":"work","dir":"'$ROOT'/.claude"},
+                              {"name":"personal","dir":"'$ROOT'/.claude-personal"}]'
 end
 
 # A believable /proc/<pid>/stat: field 2 is the comm in parentheses, field 22 the
@@ -94,6 +99,19 @@ end
 
 function collect
     $COLLECT
+end
+
+# A record in a config directory the sandbox does not otherwise know about, for
+# the tests that hand the collector its own list of accounts.
+function record_in -a dir pid sstatus name cwd
+    mkdir -p $dir/sessions
+    jq -n --argjson pid $pid --arg status $sstatus --arg name $name --arg cwd $cwd '
+        {
+            pid: $pid, sessionId: "sid-\($pid)", cwd: $cwd, name: $name,
+            kind: "interactive", status: $status, version: "2.1.260",
+            startedAt: 1788540000000, updatedAt: 1788543000000,
+            statusUpdatedAt: 1788543000000, procStart: "\($pid)00"
+        }' >$dir/sessions/$pid.json
 end
 
 echo "═══ Task 1: nothing running ═══"
@@ -370,8 +388,8 @@ echo '{"limits": []}' >$ROOT/usage.json
 # work has no credentials at all; personal has a token that expired in 2001.
 jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 1000000000000}}' >$ROOT/.claude-personal/.credentials.json
 set -l out ($USAGE)
-check "a profile with no credentials is absent" absent (echo $out | jq -r '.profiles[] | select(.id=="work") | .state')
-check "a profile whose token expired says so" expired (echo $out | jq -r '.profiles[] | select(.id=="personal") | .state')
+check "a profile with no credentials is absent" absent (echo $out | jq -r '.profiles[] | select(.name=="work") | .state')
+check "a profile whose token expired says so" expired (echo $out | jq -r '.profiles[] | select(.name=="personal") | .state')
 check "neither offers any bars" "0 0" (echo $out | jq -r '[.profiles[].bars | length] | join(" ")')
 
 echo
@@ -385,15 +403,15 @@ jq -n '{limits: [
          scope: {model: {display_name: "Fable"}}}]}' >$ROOT/usage.json
 jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude/.credentials.json
 set out ($USAGE)
-check "the profile reads ok" ok (echo $out | jq -r '.profiles[] | select(.id=="work") | .state')
+check "the profile reads ok" ok (echo $out | jq -r '.profiles[] | select(.name=="work") | .state')
 check "one bar per limit, named for what it is" "session weekly scoped:Fable" \
-    (echo $out | jq -r '[.profiles[] | select(.id=="work") | .bars[].id] | join(" ")')
+    (echo $out | jq -r '[.profiles[] | select(.name=="work") | .bars[].id] | join(" ")')
 check "with the labels the popup shows" "Session Weekly Fable" \
-    (echo $out | jq -r '[.profiles[] | select(.id=="work") | .bars[].label] | join(" ")')
+    (echo $out | jq -r '[.profiles[] | select(.name=="work") | .bars[].label] | join(" ")')
 check "percentages carried through" "11 5 0" \
-    (echo $out | jq -r '[.profiles[] | select(.id=="work") | .bars[].percent] | join(" ")')
+    (echo $out | jq -r '[.profiles[] | select(.name=="work") | .bars[].percent] | join(" ")')
 check "and which one is actually counting" true \
-    (echo $out | jq -r '.profiles[] | select(.id=="work") | .bars[0].active')
+    (echo $out | jq -r '.profiles[] | select(.name=="work") | .bars[0].active')
 
 echo
 echo "═══ Task 24: a plan that reports no limits is not an error ═══"
@@ -402,8 +420,8 @@ set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
 echo '{"limits": []}' >$ROOT/usage.json
 jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude/.credentials.json
 set out ($USAGE)
-check "still ok, just empty" ok (echo $out | jq -r '.profiles[] | select(.id=="work") | .state')
-check "no bars" 0 (echo $out | jq -r '.profiles[] | select(.id=="work") | .bars | length')
+check "still ok, just empty" ok (echo $out | jq -r '.profiles[] | select(.name=="work") | .state')
+check "no bars" 0 (echo $out | jq -r '.profiles[] | select(.name=="work") | .bars | length')
 set -e CLAUDE_USAGE_FIXTURE
 
 echo
@@ -416,11 +434,93 @@ jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.c
 # limits" - the widget would quietly show nothing instead of saying it failed.
 echo '{"error": {"type": "rate_limit_error", "message": "rate limited"}}' >$ROOT/usage.json
 set -l out ($USAGE)
-check "an error body is reported as an error" error (echo $out | jq -r '.profiles[] | select(.id=="work") | .state')
-check "and offers no bars" 0 (echo $out | jq -r '.profiles[] | select(.id=="work") | .bars | length')
+check "an error body is reported as an error" error (echo $out | jq -r '.profiles[] | select(.name=="work") | .state')
+check "and offers no bars" 0 (echo $out | jq -r '.profiles[] | select(.name=="work") | .bars | length')
 echo '{"limits": []}' >$ROOT/usage.json
 set out ($USAGE)
-check "a real but empty limits array is still ok" ok (echo $out | jq -r '.profiles[] | select(.id=="work") | .state')
+check "a real but empty limits array is still ok" ok (echo $out | jq -r '.profiles[] | select(.name=="work") | .state')
+set -e CLAUDE_USAGE_FIXTURE
+
+echo
+echo "═══ Task 26: the accounts read are the ones configured ═══"
+setup
+set -g FIND $REPO/package/contents/scripts/claude-find-profiles
+record work 4260 busy from-stock /home/u/a
+record_in $ROOT/.claude-side 4261 idle from-side /home/u/b
+record_in $ROOT/.claude-ignored 4262 idle never-asked-for /home/u/c
+fake_proc 4260 426000
+fake_proc 4261 426100
+fake_proc 4262 426200
+# A tilde, a name with a space in it, and one directory that does not exist.
+set -gx CLAUDE_PROFILES '[{"name":"day job","dir":"~/.claude"},
+                          {"name":"side project","dir":"'$ROOT'/.claude-side"},
+                          {"name":"gone","dir":"'$ROOT'/.nowhere"}]'
+set out (collect)
+check "only the configured accounts are read" 2 (echo $out | jq '.sessions | length')
+check "a directory nobody asked for stays out" "" (echo $out | jq -r '.sessions[] | select(.pid==4262) | .name')
+check "the configured name is what a session carries" "day job" (echo $out | jq -r '.sessions[] | select(.pid==4260) | .profile')
+check "a name with a space survives" "side project" (echo $out | jq -r '.sessions[] | select(.pid==4261) | .profile')
+check "the tilde is expanded" $ROOT/.claude (echo $out | jq -r '.sessions[] | select(.pid==4260) | .profileDir')
+check "the second account carries its own directory" $ROOT/.claude-side (echo $out | jq -r '.sessions[] | select(.pid==4261) | .profileDir')
+# Which matters because it is the difference between `claude --resume` and
+# CLAUDE_CONFIG_DIR=... claude --resume, and setting that to ~/.claude is the one
+# thing Claude Code documents as never to do.
+check "only the stock directory is the default one" true (echo $out | jq -r '.sessions[] | select(.pid==4260) | .profileDefault')
+check "a second account is not the default one" false (echo $out | jq -r '.sessions[] | select(.pid==4261) | .profileDefault')
+check "an account that does not exist is simply absent" "day job side project" (echo $out | jq -r '.profiles | join(" ")')
+set -e CLAUDE_PROFILES
+
+echo
+echo "═══ Task 27: nothing configured still reads the stock directory ═══"
+setup
+set -e CLAUDE_PROFILES
+record work 4270 busy stock-only /home/u/a
+record personal 4271 busy not-asked-for /home/u/b
+fake_proc 4270 427000
+fake_proc 4271 427100
+set out (collect)
+# One account, and the one Claude Code itself uses. The old fallback also read
+# ~/.claude-personal, which is a path this project's sibling invented rather
+# than one anybody else would have.
+check "the fallback finds the stock account" 1 (echo $out | jq '.sessions | length')
+check "and only that one" stock-only (echo $out | jq -r '.sessions[0].name')
+check "named for what it is" default (echo $out | jq -r '.sessions[0].profile')
+
+echo
+echo "═══ Task 28: finding accounts under a path ═══"
+setup
+mkdir -p $ROOT/.claude-side $ROOT/.claude-empty $ROOT/Documents
+echo '{}' >$ROOT/.claude/.claude.json
+jq -n '{claudeAiOauth: {accessToken: "x"}}' >$ROOT/.claude-side/.credentials.json
+# The stock profile keeps its .claude.json beside ~/.claude rather than inside
+# it, so home carries the marker without being an account.
+echo '{}' >$ROOT/.claude.json
+set found ($FIND $ROOT)
+check "both marked directories are found" "$ROOT/.claude $ROOT/.claude-side" (echo $found | jq -r '[.[].dir] | join(" ")')
+check "the stock directory is named for what it is" default (echo $found | jq -r '.[] | select(.dir=="'$ROOT'/.claude") | .name')
+check "a sibling is named after its suffix" side (echo $found | jq -r '.[] | select(.dir=="'$ROOT'/.claude-side") | .name')
+check "a directory with no marker is not an account" 0 (echo $found | jq '[.[] | select(.dir | test("empty|Documents"))] | length')
+check "home itself is never an account" 0 (echo $found | jq '[.[] | select(.dir == "'$ROOT'")] | length')
+check "pointing at one account returns just it" "$ROOT/.claude-side" ($FIND $ROOT/.claude-side | jq -r '[.[].dir] | join(" ")')
+check "pointing at anything else returns nothing" 0 ($FIND $ROOT/Documents | jq 'length')
+check "a trailing slash on home changes nothing" 0 ($FIND $ROOT/ | jq '[.[] | select(.dir == "'$ROOT'")] | length')
+
+echo
+echo "═══ Task 29: plan usage follows the configured accounts ═══"
+setup
+mkdir -p $ROOT/.claude-side
+jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude/.credentials.json
+jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude-side/.credentials.json
+echo '{"limits": [{"kind": "session", "percent": 7, "is_active": true}]}' >$ROOT/usage.json
+set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
+set -gx CLAUDE_PROFILES '[{"name":"day job","dir":"'$ROOT'/.claude"},{"name":"side project","dir":"'$ROOT'/.claude-side"}]'
+set out ($USAGE)
+check "one entry per configured account" 2 (echo $out | jq '.profiles | length')
+# The directory is the identity - two accounts may well be called the same
+# thing - and the name is only what the footer prints.
+check "each is identified by its directory" "$ROOT/.claude $ROOT/.claude-side" (echo $out | jq -r '[.profiles[].id] | join(" ")')
+check "and carries the name it was given" "day job side project" (echo $out | jq -r '[.profiles[].name] | join(" ")')
+set -e CLAUDE_PROFILES
 set -e CLAUDE_USAGE_FIXTURE
 
 echo

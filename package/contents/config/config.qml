@@ -22,6 +22,11 @@ ConfigModel {
         source: "ConfigPopup.qml"
     }
     ConfigCategory {
+        name: i18n("Accounts")
+        icon: "preferences-desktop-user"
+        source: "ConfigProfiles.qml"
+    }
+    ConfigCategory {
         name: i18n("Colours")
         icon: "preferences-desktop-color"
         source: "ConfigColours.qml"

@@ -221,8 +221,24 @@ test("only the rows worth pasting are click-to-copy", () => {
 test("the resume command lands you back in the session, in its own directory", () => {
     assert.equal(Sessions.resumeCommand(session()),
                  "cd /home/u/code/checkout-flow && claude --resume abc-123")
-    assert.equal(Sessions.resumeCommand(session({profile: "personal"})),
-                 "cd /home/u/code/checkout-flow && claude-personal --resume abc-123")
+    assert.equal(Sessions.resumeCommand(session({
+                     profileDir: "/home/u/.claude", profileDefault: true})),
+                 "cd /home/u/code/checkout-flow && claude --resume abc-123")
+})
+
+// $CLAUDE_CONFIG_DIR is how Claude Code itself is told which account to use, so
+// it works whatever the account was called and wherever it was put - and the
+// stock directory is the one value it must never be set to, which is the whole
+// job of profileDefault.
+test("a session from a second account carries that account's directory", () => {
+    assert.equal(Sessions.resumeCommand(session({
+                     profileDir: "/home/u/.claude-side", profileDefault: false})),
+                 "cd /home/u/code/checkout-flow && "
+                 + "CLAUDE_CONFIG_DIR=/home/u/.claude-side claude --resume abc-123")
+    assert.equal(Sessions.resumeCommand(session({
+                     profileDir: "/home/u/my accounts/side", profileDefault: false})),
+                 "cd /home/u/code/checkout-flow && "
+                 + "CLAUDE_CONFIG_DIR='/home/u/my accounts/side' claude --resume abc-123")
 })
 
 test("a path with a space or a quote in it is still a safe command", () => {

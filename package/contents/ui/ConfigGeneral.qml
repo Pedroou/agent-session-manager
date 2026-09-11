@@ -43,10 +43,10 @@ KCM.SimpleKCM {
     property color cfg_colorShell: Sessions.defaultColor("shell")
     property color cfg_colorDone: Sessions.defaultColor("done")
     property string cfg_nicknames: "{}"
-    property string cfg_usageProfile: "work"
+    property string cfg_usageProfile: ""
     property bool cfg_usageExpanded: false
-    property string cfg_usageBarWork: "session"
-    property string cfg_usageBarPersonal: "session"
+    property string cfg_usageBars: "{}"
+    property string cfg_profileSearchPath: "~"
     function resetToDefaults() {
         interval.value = 5
         attention.checked = true
@@ -78,10 +78,13 @@ KCM.SimpleKCM {
         page.cfg_colorDone = Sessions.defaultColor("done")
 
         page.cfg_nicknames = "{}"
-        page.cfg_usageProfile = "work"
+        page.cfg_usageProfile = ""
         page.cfg_usageExpanded = false
-        page.cfg_usageBarWork = "session"
-        page.cfg_usageBarPersonal = "session"
+        page.cfg_usageBars = "{}"
+        page.cfg_profileSearchPath = "~"
+        // The account list is deliberately not in here. It is the only setting
+        // a person builds by hand rather than picks, and putting it one stray
+        // click away from gone is not worth the tidiness.
     }
 
     Kirigami.FormLayout {

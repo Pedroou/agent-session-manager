@@ -33,13 +33,16 @@ MouseArea {
     // not sit flush against whatever is next to it in the panel.
     readonly property real pad: Kirigami.Units.smallSpacing
 
-    // The same limit, on the same profile, that the popup's footer is showing.
-    readonly property var usageBar: widget
-        ? Usage.panelBar(widget.usage, plasmoid.configuration.usageProfile,
-                         plasmoid.configuration.usageProfile === "personal"
-                            ? plasmoid.configuration.usageBarPersonal
-                            : plasmoid.configuration.usageBarWork)
-        : null
+    // The same limit, on the same account, that the popup's footer is showing.
+    // Resolved the same way too, so a selection that no longer exists lands on
+    // the same account in both places rather than blanking one of them.
+    readonly property var usageBar: {
+        if (!widget) {
+            return null
+        }
+        var id = Usage.selectedId(widget.usage, plasmoid.configuration.usageProfile)
+        return Usage.panelBar(widget.usage, id, widget.barIdFor(id))
+    }
     // Below three bars the strip is barely wider than it is tall and reads as a
     // smudge rather than a measurement, so it waits until there is width to fill.
     readonly property int usageMinBars: 3

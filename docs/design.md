@@ -91,13 +91,31 @@ Claude Code checks its own: the process must exist **and** field 22 of
 `/proc/<pid>/stat` - the start time in clock ticks - must equal the record's
 `procStart`. That second half is what rules out a recycled pid.
 
-### Both profiles
+### Accounts
 
-`sessions/` is per-profile: `~/.claude/sessions` and
-`~/.claude-personal/sessions` are separate directories (unlike `projects/`,
-which the profile scripts share via symlink). Both are read, and each session
-carries the profile it came from. The profile is only *shown* on a row when the
-personal profile actually has a session running.
+`sessions/` is per config directory, so reading more than one account is reading
+more than one directory. Which directories is not something to guess at:
+`CLAUDE_CONFIG_DIR` is Claude Code's own switch and it takes any path, so the
+widget hands the collectors the list the user configured, as a JSON array of
+`{name, dir}` in `$CLAUDE_PROFILES`. Nothing configured falls back to `~/.claude`
+so a fresh install still shows something.
+
+An account is identified by its directory throughout - two of them may well be
+called the same thing - and the name exists only to be printed. That is also
+what makes the resume command right for any account: `CLAUDE_CONFIG_DIR=<dir>
+claude --resume <id>`, except for `~/.claude`, the one value Claude Code
+documents as never to set it to.
+
+The account is only *shown* on a row when the list on screen actually spans more
+than one of them.
+
+Discovery is a separate script, `claude-find-profiles`, and it only runs when
+the settings page asks. A directory counts as an account when Claude Code has
+written `.claude.json` or `.credentials.json` into it - with the home directory
+itself excluded, because the stock profile keeps its `.claude.json` beside
+`~/.claude` rather than inside it. The same script answers "what is under here?"
+and "is this one?", which is how a path typed by hand gets checked before it
+joins the list.
 
 ### Plan usage
 

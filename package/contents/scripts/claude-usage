@@ -11,21 +11,41 @@
 # state rather than left to look like zero usage.
 #
 # Environment overrides (used by the test suite):
+#   CLAUDE_PROFILES       JSON array of {name, dir} to read, in order
 #   CLAUDE_USAGE_FIXTURE  read this file instead of calling the API
 #
 # Exit status is 0 whenever a document was printed, including "nothing to show".
 
 set -l endpoint https://api.anthropic.com/api/oauth/usage
 
-set -l profile_ids work personal
-set -l profile_dirs $HOME/.claude $HOME/.claude-personal
+# Which config directories to ask about, and what to call each one. Kept in step
+# with claude-sessions on purpose: the two are read together and a profile the
+# session list knows about but the usage footer does not would be a puzzle.
+set -l profile_names
+set -l profile_dirs
+if test -n "$CLAUDE_PROFILES"
+    set -l flat (echo $CLAUDE_PROFILES | jq -r '.[] | (.name // ""), (.dir // "")' 2>/dev/null)
+    for i in (seq 1 2 (count $flat))
+        set -l dir $flat[(math $i + 1)]
+        test -n "$dir"; or continue
+        set -a profile_names $flat[$i]
+        set -a profile_dirs (string replace -r '^~' $HOME -- $dir)
+    end
+end
+# Nothing configured: the directory Claude Code keeps its own account in, so
+# running this by hand still shows something. Only that one - any other path is
+# somebody's choice, and guessing at it is what this replaced.
+if test (count $profile_dirs) -eq 0
+    set profile_names default
+    set profile_dirs $HOME/.claude
+end
 
 # One profile's bars, or the reason there are none. Prints a JSON object.
-function __cu_profile -a id dir endpoint
+function __cu_profile -a id name dir endpoint
     set -l credentials $dir/.credentials.json
 
     if not test -r $credentials
-        jq -n --arg id $id '{id: $id, state: "absent", bars: []}'
+        jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "absent", bars: []}'
         return
     end
 
@@ -33,7 +53,7 @@ function __cu_profile -a id dir endpoint
     set -l expires (jq -r '.claudeAiOauth.expiresAt // empty' $credentials 2>/dev/null)
 
     if test -z "$token"
-        jq -n --arg id $id '{id: $id, state: "absent", bars: []}'
+        jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "absent", bars: []}'
         return
     end
 
@@ -42,7 +62,7 @@ function __cu_profile -a id dir endpoint
     if test -n "$expires"
         set -l now_ms (date +%s)000
         if test "$expires" -lt "$now_ms" 2>/dev/null
-            jq -n --arg id $id '{id: $id, state: "expired", bars: []}'
+            jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "expired", bars: []}'
             return
         end
     end
@@ -62,17 +82,17 @@ function __cu_profile -a id dir endpoint
     end
 
     if test -z "$body"
-        jq -n --arg id $id '{id: $id, state: "error", bars: []}'
+        jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "error", bars: []}'
         return
     end
 
     # `limits[]` already carries percent, severity and reset time per limit, and
     # names the model a scoped limit belongs to - so the bars on offer are
     # whatever the plan actually has, not a hardcoded three.
-    echo $body | jq -c --arg id $id '
+    echo $body | jq -c --arg id $id --arg name $name '
         # A body with no `limits` array at all is an error object, not a plan
         # without limits; only a real (possibly empty) array counts as ok.
-        if (.limits | type) != "array" then {id: $id, state: "error", bars: []} else
+        if (.limits | type) != "array" then {id: $id, name: $name, state: "error", bars: []} else
         def barLabel($l):
             if $l.kind == "session" then "Session"
             elif $l.kind == "weekly_all" then "Weekly"
@@ -84,6 +104,7 @@ function __cu_profile -a id dir endpoint
 
         {
             id: $id,
+            name: $name,
             state: "ok",
             bars: [ (.limits // [])[]
                 | select(.percent != null)
@@ -97,12 +118,12 @@ function __cu_profile -a id dir endpoint
                   } ]
         } end' 2>/dev/null
 
-    or jq -n --arg id $id '{id: $id, state: "error", bars: []}'
+    or jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "error", bars: []}'
 end
 
 set -l parts
-for i in (seq (count $profile_ids))
-    set -a parts (__cu_profile $profile_ids[$i] $profile_dirs[$i] $endpoint)
+for i in (seq (count $profile_dirs))
+    set -a parts (__cu_profile $profile_dirs[$i] $profile_names[$i] $profile_dirs[$i] $endpoint)
 end
 
 set -l now (date +%s)000

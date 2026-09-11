@@ -24,9 +24,60 @@ PlasmoidItem {
     readonly property var shown: Sessions.visible(sessions, plasmoid.configuration)
     readonly property var shownCounts: Sessions.countsFor(shown)
     readonly property bool censored: plasmoid.configuration.censorNames
-    // The profile only earns space on a row when there is more than one in play.
-    readonly property bool showProfiles: profiles.length > 1
-                                         && sessions.some(function (s) { return s.profile === "personal" })
+    // The account only earns space on a row when the list on screen actually
+    // spans more than one of them.
+    readonly property bool showProfiles: {
+        var seen = ({})
+        var distinct = 0
+        for (var i = 0; i < sessions.length; i++) {
+            var key = sessions[i].profileDir || sessions[i].profile || ""
+            if (!seen[key]) {
+                seen[key] = true
+                distinct += 1
+            }
+        }
+        return distinct > 1
+    }
+
+    // The accounts to read, as configured. An empty list is not a broken state:
+    // the collectors fall back to the stock directory on their own, so the
+    // widget works before anyone has opened the settings.
+    readonly property var profileList: {
+        try {
+            var list = JSON.parse(plasmoid.configuration.profiles || "[]")
+            return Array.isArray(list) ? list : []
+        } catch (e) {
+            return []
+        }
+    }
+    readonly property var activeProfiles: profileList.filter(function (p) {
+        return p && p.dir && p.enabled !== false
+    })
+
+    // Which limit each account tracks, keyed by its config directory. A map
+    // rather than a setting per account, because there is no fixed number of
+    // them any more.
+    readonly property var usageBars: {
+        try {
+            var map = JSON.parse(plasmoid.configuration.usageBars || "{}")
+            return (map && typeof map === "object") ? map : ({})
+        } catch (e) {
+            return ({})
+        }
+    }
+
+    function barIdFor(profileId) {
+        return usageBars[profileId] || ""
+    }
+
+    function setBarFor(profileId, barId) {
+        var map = {}
+        for (var key in usageBars) {
+            map[key] = usageBars[key]
+        }
+        map[profileId] = barId
+        plasmoid.configuration.usageBars = JSON.stringify(map)
+    }
 
     // Told to every open row when the popup closes, so the next opening starts
     // collapsed rather than showing whatever was left expanded.
@@ -190,7 +241,7 @@ PlasmoidItem {
             return
         }
         lastUsageFetch = now
-        usageSource.connectSource("'" + usagePath.replace(/'/g, "'\\''") + "'")
+        usageSource.connectSource(profilesEnv + shellQuote(usagePath))
     }
 
     Timer {
@@ -259,8 +310,26 @@ PlasmoidItem {
         return url.replace(/^file:\/\//, "")
     }
 
+    function shellQuote(text) {
+        return "'" + String(text).replace(/'/g, "'\\''") + "'"
+    }
+
+    // The accounts go to both collectors through the environment rather than the
+    // command line. A name is the user's own text and a directory is a path;
+    // one JSON document quoted once is less to get wrong than an argument list
+    // built out of both.
+    readonly property string profilesEnv: {
+        if (activeProfiles.length === 0) {
+            return ""
+        }
+        var slim = activeProfiles.map(function (p) {
+            return {name: String(p.name || ""), dir: String(p.dir)}
+        })
+        return "CLAUDE_PROFILES=" + shellQuote(JSON.stringify(slim)) + " "
+    }
+
     function refresh() {
-        collector.connectSource("'" + collectorPath.replace(/'/g, "'\\''") + "'")
+        collector.connectSource(profilesEnv + shellQuote(collectorPath))
     }
 
     // Poll faster while the popup is open - that is the only time a stale second

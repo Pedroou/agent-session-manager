@@ -9,7 +9,7 @@
 <p>
 <img alt="KDE Plasma 6" src="https://img.shields.io/badge/KDE_Plasma-6-1d99f3?style=flat-square&logo=kde&logoColor=white&labelColor=2d333b">
 <img alt="QML and fish" src="https://img.shields.io/badge/QML_%2B_fish-41cd52?style=flat-square&logo=qt&logoColor=white&labelColor=2d333b">
-<img alt="118 tests" src="https://img.shields.io/badge/tests-118_passing-3fb950?style=flat-square&labelColor=2d333b">
+<img alt="144 tests" src="https://img.shields.io/badge/tests-144_passing-3fb950?style=flat-square&labelColor=2d333b">
 <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue?style=flat-square&labelColor=2d333b"></a>
 </p>
 
@@ -38,8 +38,9 @@ doing, so a glance is enough.
 - **A popup with the details** - directory, git repository and branch, uptime,
   session id, pid. Click any value to copy it.
 - **Your plan usage**, per account, for whichever limit you care about.
-- **Two accounts side by side**, if you run a second Claude Code config
-  directory.
+- **As many accounts as you run.** Claude Code switches accounts with
+  `CLAUDE_CONFIG_DIR`, which takes any path, so the widget asks where yours are
+  rather than guessing: search a directory for them, or name one outright.
 - **Native Plasma theming**, with every status colour overridable.
 
 ## Reading the panel
@@ -125,7 +126,24 @@ takes effect:
   severity.
 - **Popup** - how many sessions it shows before scrolling, which rows an expanded
   session has, and where the branch goes.
+- **Accounts** - which config directories to watch.
 - **Colours** - all six status colours.
+
+### Accounts
+
+One account needs no setup: left empty, the widget reads `~/.claude`, which is
+where Claude Code keeps its own.
+
+More than one is the **Accounts** page. Point **Search** at a directory and it
+looks one level down for anything Claude Code has written to - your home
+directory, by default, since `CLAUDE_CONFIG_DIR` is usually pointed at a sibling
+of `~/.claude`. Anything it finds joins the list, where each account can be
+renamed to something you will recognise, switched off without being forgotten,
+or removed. You can also just name a directory yourself.
+
+Searching only ever happens because you asked. An account you remove has to stay
+removed, and it cannot if something re-runs the search behind you - so nothing
+does.
 
 ## How it works
 
@@ -149,13 +167,18 @@ Records outlive sessions that were killed rather than closed, so each is checked
 the way Claude Code checks its own: the process must exist **and** its start time
 in `/proc` must match the record, which rules out a recycled pid.
 
+Every account is read the same way, and an account is only ever a directory:
+`CLAUDE_CONFIG_DIR` is what Claude Code itself uses, so a session's "reopen"
+command is that variable and nothing else - except for `~/.claude`, the one
+value it must never be set to.
+
 Everything with a decision in it lives in two fish collectors and two Qt-free
 JavaScript files, all four testable without a running Plasma shell:
 
 ```fish
-fish --no-config test/test-collectors.fish   # 70 assertions
-node --test test/sessions.test.js            # 29
-node --test test/usage.test.js               # 19
+fish --no-config test/test-collectors.fish   # 93 assertions
+node --test test/sessions.test.js            # 30
+node --test test/usage.test.js               # 21
 ```
 
 The fish suite builds a throwaway `$HOME`, a throwaway `/proc` **and** throwaway

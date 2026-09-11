@@ -101,11 +101,44 @@ function selectableProfiles(usage) {
     })
 }
 
-// The bar the panel strip tracks: whichever profile the footer has selected, and
+// The account the footer and the panel are pointed at.
+//
+// Accounts are identified by their config directory, and that list is the
+// user's to edit - so the one that was selected can simply stop existing. An id
+// that no longer matches falls back to the first account rather than leaving
+// the bar blank, which would read as "no usage" rather than "not that one".
+function selectedProfile(usage, wantedId) {
+    var list = selectableProfiles(usage)
+    if (!list.length) {
+        return null
+    }
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].id === wantedId) {
+            return list[i]
+        }
+    }
+    return list[0]
+}
+
+function selectedId(usage, wantedId) {
+    var profile = selectedProfile(usage, wantedId)
+    return profile ? profile.id : ""
+}
+
+// What to call an account on screen. The id is its directory, which is right
+// for identity and wrong for a label.
+function displayName(profile) {
+    if (!profile) {
+        return ""
+    }
+    return profile.name || profile.id || ""
+}
+
+// The bar the panel strip tracks: whichever account the footer has selected, and
 // whichever limit was chosen for it - so the panel and the popup never disagree
 // about what is being measured.
 function panelBar(usage, profileId, barId) {
-    return barFor(profileById(usage, profileId), barId)
+    return barFor(selectedProfile(usage, profileId), barId)
 }
 
 // Whether a bar has passed the point at which the panel bothers drawing it.
@@ -166,6 +199,9 @@ if (typeof module !== "undefined" && module.exports) {
         stateMessage: stateMessage,
         profileById: profileById,
         selectableProfiles: selectableProfiles,
+        selectedProfile: selectedProfile,
+        selectedId: selectedId,
+        displayName: displayName,
         panelBar: panelBar,
         pastThreshold: pastThreshold,
         merge: merge

@@ -112,17 +112,37 @@
       <default>true</default>
     </entry>
     <entry name="usageProfile" type="String">
-      <label>Which profile's usage bar shows while the selector is collapsed.</label>
-      <default>work</default>
+      <label>Which account's usage bar shows while the selector is collapsed,
+      as its config directory. Blank, or one that is no longer configured,
+      falls back to the first.</label>
+      <default></default>
     </entry>
     <entry name="usageExpanded" type="Bool">
       <default>false</default>
     </entry>
-    <entry name="usageBarWork" type="String">
-      <default>session</default>
+    <!-- Which limit each account tracks, as a JSON object keyed by config
+         directory. A map rather than one entry per account, because there is no
+         longer a fixed number of them. -->
+    <entry name="usageBars" type="String">
+      <default>{}</default>
     </entry>
-    <entry name="usageBarPersonal" type="String">
-      <default>session</default>
+
+    <!-- The accounts to read.
+         Claude Code's own mechanism for a second account is $CLAUDE_CONFIG_DIR,
+         which takes any path, so there is nothing sensible to hardcode. This is
+         a JSON array of {dir, name, enabled}. Left empty the collectors fall
+         back to the stock directory and the sibling the widget used to assume,
+         so a fresh install still shows something before anyone opens the
+         settings. -->
+    <entry name="profiles" type="String">
+      <default>[]</default>
+    </entry>
+    <entry name="profileSearchPath" type="String">
+      <label>Where the Accounts page looks when asked to search. Searching is
+      always a deliberate act: an account removed from the list has to stay
+      removed across restarts, which it cannot if something re-runs the
+      search on its own.</label>
+      <default>~</default>
     </entry>
 
     <!-- Runtime state the popup owns, kept here so it survives a restart. -->

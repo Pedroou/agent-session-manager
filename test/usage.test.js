@@ -150,3 +150,31 @@ test("with nothing to fall back on, a failure stays a failure", () => {
     assert.equal(Usage.profileById(after, "work").state, "error")
     assert.equal(Usage.merge(null, null), null)
 })
+
+// Accounts are identified by their config directory, and that list is the
+// user's to edit - so the account the footer was pointed at can simply stop
+// existing. Falling back to the first beats showing an empty bar, which reads
+// as "nothing used" rather than "not that one".
+test("a selection that no longer exists falls back to the first account", () => {
+    const usage = {profiles: [
+        {id: "/home/u/.claude", name: "day job", state: "ok", bars: [
+            {id: "session", label: "Session", percent: 12}]},
+        {id: "/home/u/.claude-side", name: "side project", state: "ok", bars: []}
+    ]}
+    assert.equal(Usage.selectedId(usage, "/home/u/.claude-side"), "/home/u/.claude-side")
+    assert.equal(Usage.selectedId(usage, "/home/u/.gone"), "/home/u/.claude")
+    assert.equal(Usage.selectedId(usage, ""), "/home/u/.claude")
+    assert.equal(Usage.selectedId({profiles: []}, "anything"), "")
+    assert.equal(Usage.selectedProfile(null, "x"), null)
+
+    // And the panel strip follows the same fallback, so it and the footer never
+    // end up measuring different accounts.
+    assert.equal(Usage.panelBar(usage, "/home/u/.gone", "session").percent, 12)
+})
+
+test("an account is shown by its name and identified by its directory", () => {
+    assert.equal(Usage.displayName({id: "/home/u/.claude-side", name: "side"}), "side")
+    // No name is not a crash: the directory is at least true.
+    assert.equal(Usage.displayName({id: "/home/u/.claude-side"}), "/home/u/.claude-side")
+    assert.equal(Usage.displayName(null), "")
+})
