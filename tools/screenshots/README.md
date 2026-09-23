@@ -62,6 +62,14 @@ screenshot.
 from a fixed epoch and the stage pins the widget's `now` to the same number. An
 age that re-times itself is an image you cannot retake to match the others.
 
+The catch is that the epoch is a literal, and it ages. The committed images say
+"34m" because they were taken when it was current; run the rig today and the
+same sessions read "13d 20h", because the fabricated records are dated to a
+moment now well in the past. Nothing shipped depends on it - but before
+regenerating any image, move `NOW` in `build-home.fish` forward to roughly the
+current time, or the screenshots will claim every session has been idle for a
+fortnight.
+
 **Grab a child, never the stage.** `plasmawindowed` hands the applet whatever
 its window ended up being - measured at 492x367 for a 492x353 request - and
 `grabToImage` maps an item's *real* bounds onto the target size. Grabbing the

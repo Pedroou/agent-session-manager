@@ -99,7 +99,8 @@ whichever you chose.
 
 ## Install
 
-Requires **Plasma 6**, **fish 3.2+**, `jq`, `curl` and `kpackagetool6`.
+Requires **Plasma 6**, **fish 3.5+**, `jq`, `curl` and `kpackagetool6`.
+`install.fish` checks for all of them.
 
 ```fish
 git clone https://github.com/Pedroou/claude-sessions-widget
@@ -115,7 +116,7 @@ Plasma caches applet QML. `install.fish` prints the command.
 
 ## Configuration
 
-Right-click the widget → **Configure…**. Four pages, split by where each setting
+Right-click the widget → **Configure…**. Five pages, split by where each setting
 takes effect:
 
 - **General** - how often to check, the needs-attention highlight, and the

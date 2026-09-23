@@ -15,6 +15,16 @@ for tool in kpackagetool6 jq fish
     end
 end
 
+# The collectors use fish's `path` builtin, which arrived in 3.5. Tested for
+# directly rather than by parsing a version string: the builtin is the thing
+# that breaks, and an old fish would otherwise fail later with a bare
+# "path: command not found" from a script nobody was looking at.
+if not builtin --names | string match -q path
+    echo "✗ This fish is too old: the collectors need the `path` builtin (fish 3.5+)."
+    echo "  Yours is $version."
+    exit 1
+end
+
 if not test -x $package/contents/scripts/claude-sessions
     echo "✗ $package/contents/scripts/claude-sessions is not executable."
     echo "  Run: chmod +x $package/contents/scripts/claude-sessions"
