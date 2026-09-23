@@ -9,7 +9,7 @@
 <p>
 <img alt="KDE Plasma 6" src="https://img.shields.io/badge/KDE_Plasma-6-1d99f3?style=flat-square&logo=kde&logoColor=white&labelColor=2d333b">
 <img alt="QML and fish" src="https://img.shields.io/badge/QML_%2B_fish-41cd52?style=flat-square&logo=qt&logoColor=white&labelColor=2d333b">
-<img alt="147 tests" src="https://img.shields.io/badge/tests-147_passing-3fb950?style=flat-square&labelColor=2d333b">
+<a href="https://github.com/Pedroou/claude-sessions-widget/actions/workflows/tests.yml"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/Pedroou/claude-sessions-widget/tests.yml?branch=main&style=flat-square&label=tests&labelColor=2d333b"></a>
 <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue?style=flat-square&labelColor=2d333b"></a>
 </p>
 
@@ -192,13 +192,28 @@ assumed.
 [`docs/design.md`](docs/design.md) is the full write-up, and
 [`docs/limitations.md`](docs/limitations.md) is honest about what it cannot do.
 
-## Privacy
+## Privacy, and one thing worth knowing
 
-The only part that touches the network is the plan-usage bar, which asks
-Anthropic for your limits using the login Claude Code already stores. The token
-goes to `curl` through stdin rather than argv, so it never appears in the process
-list, and the whole feature has an off switch. Nothing else leaves the machine,
-and nothing is written to your Claude Code config.
+**What leaves your machine.** Only the plan-usage bar. It asks Anthropic for your
+limits using the login Claude Code already stores; the token goes to `curl`
+through stdin rather than argv, so it never appears in the process list, and it
+never reaches the widget's own code. Nothing else leaves the machine, nothing is
+written to your Claude Code config, and there is no server, no telemetry and
+nothing to sign up for.
+
+**About that endpoint.** It is the one Claude Code's own `/usage` view uses, and
+it is undocumented. Anthropic's terms describe the OAuth login as being for
+Claude Code and other Anthropic applications, and point developers building on
+Claude at an API key instead. So this reads your own token on your own machine
+for your own numbers, but it is not a use Anthropic has blessed, and the honest
+expectation is that it stops working one day rather than that it keeps working
+forever. See [Anthropic's legal and compliance
+page](https://code.claude.com/docs/en/legal-and-compliance).
+
+It is on by default because it is half of what the widget is for, and it is one
+checkbox to turn off: **Configure… → Popup → Plan usage for each profile**, plus
+**Panel → Plan Usage Bar** for the strip under the bars. The session list is
+unaffected either way - that half reads nothing but your own filesystem.
 
 ## Licence
 

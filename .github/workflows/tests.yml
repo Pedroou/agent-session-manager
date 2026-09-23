@@ -1,0 +1,41 @@
+name: tests
+
+# The suites are hermetic: test-collectors.fish builds a throwaway $HOME, a
+# throwaway /proc and throwaway transcripts, and the JavaScript layers are Qt
+# free by design. So there is no Plasma shell here and nothing is installed -
+# fish, jq and node are the whole dependency list.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install fish and jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fish jq
+
+      # The collectors use the `path` builtin, which arrived in fish 3.5. If a
+      # runner image ever ships something older, fail here with a reason rather
+      # than in a collector with "path: command not found".
+      - name: Check fish is new enough
+        run: |
+          fish -c 'echo "fish $version"'
+          fish -c 'builtin --names | string match -q path' \
+            || { echo "::error::this fish has no \`path\` builtin (needs 3.5+)"; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Collectors
+        run: fish --no-config test/test-collectors.fish
+
+      - name: Pure layers
+        run: node --test test/sessions.test.js test/usage.test.js
