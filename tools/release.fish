@@ -70,7 +70,7 @@ if test "$current" != "$newver"; and not __newer $current $newver
 end
 
 echo "→ $current → $newver"
-jq --arg v $newver '.KPlugin.Version = $v' $metadata >$metadata.tmp
+jq --indent 4 --arg v $newver '.KPlugin.Version = $v' $metadata >$metadata.tmp
 and mv $metadata.tmp $metadata
 or begin
     echo "✗ Could not write $metadata"
@@ -98,10 +98,14 @@ rm -f $artifact
 pushd $repo/package >/dev/null
 zip -q -r $artifact . -x '*.git*'
 popd >/dev/null
-echo "→ $artifact ("(math (stat -c%s $artifact) / 1024)" KiB)"
+echo "→ $artifact ("(math -s0 (stat -c%s $artifact) / 1024)" KiB)"
 
 git -C $repo add package/metadata.json
-git -C $repo commit -q -m "Release v$newver"
+if test (count (git -C $repo diff --cached --name-only)) -gt 0
+    git -C $repo commit -q -m "Release v$newver"
+else
+    echo "  (metadata.json already said $newver)"
+end
 git -C $repo tag -a "v$newver" -m "v$newver"
 echo "→ Committed and tagged v$newver"
 
