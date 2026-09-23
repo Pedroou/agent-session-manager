@@ -26,9 +26,10 @@ Item {
     readonly property bool wantsCursor: scenario === "usage" || scenario === "actions"
                                         || scenario === "copy"
 
-    // The clock every age and uptime is measured against. build-home.fish puts
-    // the same number in the fabricated records.
-    readonly property double frozenNow: 1789000000000
+    // The clock every age and uptime is measured against. Comes from
+    // build-home.fish, which dates the fabricated records to the same moment -
+    // two literals that had to agree by hand was a trap.
+    readonly property double frozenNow: Demo.NOW
 
     // The panel behind the widget and the desktop behind the popup are one
     // colour, so the widget's own box has no edge to give away that it resized

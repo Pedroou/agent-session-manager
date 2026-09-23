@@ -177,10 +177,12 @@ def main(home, scenario, frame_ms):
 
     shutil.copy(HERE / "harness/Stage.qml", ui / "Stage.qml")
     shutil.copy(HERE / "harness/DemoCursor.qml", ui / "DemoCursor.qml")
+    epoch = (pathlib.Path(home) / "epoch").read_text().strip()
     (ui / "Demo.js").write_text(
         f'var SCENARIO = "{scenario}"\n'
         f'var OUT = "/home/dev/frames"\n'
-        f'var FRAME_MS = {frame_ms}\n')
+        f'var FRAME_MS = {frame_ms}\n'
+        f'var NOW = {epoch}\n')
     print(f"patched for scenario={scenario} frame_ms={frame_ms}")
 
 

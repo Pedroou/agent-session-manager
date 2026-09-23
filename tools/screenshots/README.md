@@ -68,7 +68,8 @@ same sessions read "13d 20h", because the fabricated records are dated to a
 moment now well in the past. Nothing shipped depends on it - but before
 regenerating any image, move `NOW` in `build-home.fish` forward to roughly the
 current time, or the screenshots will claim every session has been idle for a
-fortnight.
+fortnight. It is written in one place and carried to the harness through
+`Demo.js`, so that is the only line to change.
 
 **Grab a child, never the stage.** `plasmawindowed` hands the applet whatever
 its window ended up being - measured at 492x367 for a 492x353 request - and

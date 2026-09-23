@@ -24,7 +24,7 @@ mkdir -p $home/.claude/sessions $home/.claude-personal/sessions \
 # widget's `now` to the same number, so "34m" is 34m in every capture whenever
 # it runs - a screenshot that quietly re-times itself is a screenshot you cannot
 # retake to match the others.
-set -g NOW 1789000000000
+set -g NOW 1790196966000
 
 for r in checkout-flow:main billing-api:release/2.4 docs-site:main \
          api-gateway:feature/rate-limits infra-scripts:main
@@ -104,5 +104,10 @@ printf '<?xml version="1.0"?>
   <match target="font"><edit name="rgba" mode="assign"><const>none</const></edit></match>
 </fontconfig>
 ' >$home/.config/fontconfig/fonts.conf
+
+# Carried to the harness rather than written down twice: the stage has to pin
+# the widget's clock to exactly this number, and two literals that must agree
+# is a trap somebody walks into eventually.
+echo $NOW >$home/epoch
 
 echo "home built at $home"
