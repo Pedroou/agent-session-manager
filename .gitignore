@@ -4,3 +4,7 @@
 *.swp
 *~
 .DS_Store
+
+# The screenshot rig fabricates this, and its output
+tools/screenshots/home/
+tools/screenshots/capture.log

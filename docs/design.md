@@ -166,13 +166,15 @@ package/
     ui/ProfileFooter.qml         # the profile selector
     ui/UsageBar.qml              # one plan limit
     ui/CopyToast.qml             # the copy confirmation
-    ui/Config{General,Panel,Popup,Colours}.qml
+    ui/Config{General,Panel,Popup,Profiles,Colours}.qml
     config/{main.xml,config.qml}
-    icons/{claude-sessions,reload}.svg
+    scripts/claude-find-profiles   # account discovery, for the settings page
+    icons/{com.claudeaccmanager.claudesessions,reload}.svg
 test/
   sessions.test.js               # node tests for the pure layers
   usage.test.js
   test-collectors.fish           # sandbox tests for both collectors
+tools/screenshots/               # the rig that produces docs/screenshots
 docs/design.md                   # this file
 ```
 
@@ -328,7 +330,7 @@ failure it is.
 
 ## Settings
 
-Four pages, each a `KCM.SimpleKCM` rather than a bare `Kirigami.FormLayout` -
+Five pages, each a `KCM.SimpleKCM` rather than a bare `Kirigami.FormLayout` -
 that wrapper is what gives a config page its title and its margins, because the
 config dialog instantiates each page with `title` set to the category's name and
 a root with a `title` property picks it up. Plasma's own About and Keyboard
@@ -392,3 +394,22 @@ All of it resets from one button, at the foot of the General page.
 - **`/proc` is Linux-only.** So is a Plasma panel, so this costs nothing here.
 - **Plasma caches applet QML.** After an upgrade the shell has to be restarted
   before the new code loads; `install.fish` says so rather than doing it.
+
+## The screenshots
+
+`docs/screenshots/` is generated, not captured. `tools/screenshots/` fabricates
+a home directory, mounts it at `/home/dev` with `bwrap`, drives a real
+`CompactView` and `FullView` through a scripted timeline, and writes frames out
+with `grabToImage`.
+
+The reason is not consistency, though it buys that too. The widget displays
+directories, branch names and session ids, so a screenshot of it is a screenshot
+of whoever took it - and that is not a leak that can be fixed afterwards,
+because the images are rendered pixels and a real path in one cannot be found by
+grepping the repository. Fabricating the home means there is no real path in the
+process's view of the filesystem to render in the first place.
+
+`tools/screenshots/README.md` has the scenarios, the environment the capture
+needs, and the handful of things that turned out to matter - why the clock is
+frozen, why a child item is grabbed rather than the stage, and why the device
+pixel ratio is the zoom.
