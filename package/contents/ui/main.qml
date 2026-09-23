@@ -164,7 +164,7 @@ PlasmoidItem {
         return shownCounts.total > 0 ? PlasmaCore.Types.ActiveStatus : PlasmaCore.Types.PassiveStatus
     }
 
-    toolTipMainText: i18n("Claude Code Sessions")
+    toolTipMainText: i18n("Agent Session Manager")
     toolTipSubText: failure !== "" ? failure : Sessions.tooltipLines(shownCounts)
     toolTipTextFormat: Text.PlainText
 

@@ -49,11 +49,11 @@ end
 
 # The icon has to live in an icon theme, not just in the package. A package's
 # own icons/ directory is not on the icon search path, so the name fell through
-# KDE's dash-suffix fallback - "com.claudeaccmanager.claudesessions" has no
+# KDE's dash-suffix fallback - "io.github.pedroou.agentsessionmanager" has no
 # dashes precisely so it cannot degrade into somebody else's "claude" icon.
 set -l icon_dir $HOME/.local/share/icons/hicolor/scalable/apps
 mkdir -p $icon_dir
-cp $package/contents/icons/com.claudeaccmanager.claudesessions.svg $icon_dir/
+cp $package/contents/icons/io.github.pedroou.agentsessionmanager.svg $icon_dir/
 echo "→ Icon installed to $icon_dir"
 
 if contains -- $id (__kpt --list | string trim)
@@ -68,8 +68,9 @@ or exit $status
 echo
 echo "✓ Installed."
 echo
-echo "  Add it: right-click the panel → Add or Manage Widgets… → search \"Claude Sessions\"."
+echo "  Add it: right-click the panel → Add or Manage Widgets… → search \"Agent Session Manager\"."
 echo
 echo "  Already had it on the panel? Plasma caches the old QML, so reload the shell:"
-echo "      systemctl --user restart plasma-plasmashell.service"
-echo "  (Or: kquitapp6 plasmashell; and kstart plasmashell)"
+echo "      kquitapp6 plasmashell; and kstart plasmashell"
+echo "  Then check the pid changed - the restart can fail silently:"
+echo "      pgrep -x plasmashell"

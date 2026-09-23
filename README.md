@@ -2,7 +2,7 @@
 
 <img src="docs/screenshots/logo.png" alt="" width="112">
 
-<h1>Claude Sessions</h1>
+<h1>Agent Session Manager</h1>
 
 <p><b>See which of your Claude Code sessions needs you, from your Plasma panel.</b></p>
 
@@ -218,3 +218,6 @@ unaffected either way - that half reads nothing but your own filesystem.
 ## Licence
 
 MIT - see [LICENSE](LICENSE).
+
+<sub>Unofficial, and not affiliated with or endorsed by Anthropic. Claude and
+Claude Code are trademarks of Anthropic, PBC.</sub>

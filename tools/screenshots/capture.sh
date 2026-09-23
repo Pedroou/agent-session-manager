@@ -11,7 +11,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOME_DIR="${RIG_HOME:-$HERE/home}"
 SCENARIO="$1"; FRAME_MS="${2:-50}"; SCALE="${3:-2}"
-PLUGIN_ID=com.claudeaccmanager.claudesessions
+PLUGIN_ID=io.github.pedroou.agentsessionmanager
 
 "$HERE/patch-package.py" "$HOME_DIR" "$SCENARIO" "$FRAME_MS"
 rm -rf "$HOME_DIR/frames"; mkdir -p "$HOME_DIR/frames"

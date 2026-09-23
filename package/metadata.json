@@ -1,10 +1,10 @@
 {
     "KPackageStructure": "Plasma/Applet",
     "KPlugin": {
-        "Id": "com.claudeaccmanager.claudesessions",
-        "Name": "Claude Sessions",
-        "Description": "Track the status of running Claude Code sessions - working, waiting on you, or done - along with your plan's usage limits.",
-        "Icon": "com.claudeaccmanager.claudesessions",
+        "Id": "io.github.pedroou.agentsessionmanager",
+        "Name": "Agent Session Manager",
+        "Description": "Watch every running Claude Code session from your Plasma panel - working, waiting on you, or done - with your plan's usage limits. Unofficial, not affiliated with Anthropic.",
+        "Icon": "io.github.pedroou.agentsessionmanager",
         "Category": "System Information",
         "License": "MIT",
         "Version": "1.0.0",

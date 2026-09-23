@@ -19,7 +19,7 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 SRC = HERE.parent.parent / "package"
-PLUGIN_ID = "com.claudeaccmanager.claudesessions"
+PLUGIN_ID = "io.github.pedroou.agentsessionmanager"
 
 # The accounts the screenshots are taken against, named the way the footer
 # shows them.

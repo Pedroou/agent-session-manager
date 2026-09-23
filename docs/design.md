@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-04, revised 2026-09-08
 **Status:** Implemented. Installed by `./install.fish`.
-**Plasmoid id:** `com.claudeaccmanager.claudesessions`
+**Plasmoid id:** `io.github.pedroou.agentsessionmanager`
 
 ## Goal
 
@@ -175,7 +175,7 @@ package/
     ui/Config{General,Panel,Popup,Profiles,Colours}.qml
     config/{main.xml,config.qml}
     scripts/claude-find-profiles   # account discovery, for the settings page
-    icons/{com.claudeaccmanager.claudesessions,reload}.svg
+    icons/{io.github.pedroou.agentsessionmanager,reload}.svg
 test/
   sessions.test.js               # node tests for the pure layers
   usage.test.js

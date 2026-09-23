@@ -71,7 +71,7 @@ Item {
 
                     PlasmaExtras.Heading {
                         level: 4
-                        text: i18n("Claude Code Sessions")
+                        text: i18n("Agent Session Manager")
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                     }
