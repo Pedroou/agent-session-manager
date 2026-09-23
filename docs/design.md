@@ -97,8 +97,14 @@ Claude Code checks its own: the process must exist **and** field 22 of
 more than one directory. Which directories is not something to guess at:
 `CLAUDE_CONFIG_DIR` is Claude Code's own switch and it takes any path, so the
 widget hands the collectors the list the user configured, as a JSON array of
-`{name, dir}` in `$CLAUDE_PROFILES`. Nothing configured falls back to `~/.claude`
-so a fresh install still shows something.
+`{name, dir}` in `$CLAUDE_PROFILES`.
+
+That list is seeded once, on first run, by the same discovery the settings page
+uses - and the fact that it has been seeded is recorded. The first version
+instead fell back to `~/.claude` whenever the list was empty, which meant an
+empty list could not be told apart from one nobody had filled in yet: the popup
+listed an account under a name the user had never chosen while the Accounts page
+said there were none. Seeding makes the list the whole truth, empty included.
 
 An account is identified by its directory throughout - two of them may well be
 called the same thing - and the name exists only to be printed. That is also

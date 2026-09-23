@@ -220,6 +220,59 @@ PlasmoidItem {
         }
     }
 
+    // Look for accounts once, on first run, and write what is found into the
+    // settings.
+    //
+    // A fallback the settings page cannot show is a lie: the popup listed an
+    // account under a name nobody had chosen while the Accounts page said there
+    // were none. Seeding the list instead means what the widget reads and what
+    // the page shows are the same thing. It happens once and is recorded,
+    // because an account the user removed has to stay removed - a look that
+    // re-ran on every start would put it back.
+    readonly property string finderPath: {
+        var url = Qt.resolvedUrl("../scripts/claude-find-profiles").toString()
+        return url.replace(/^file:\/\//, "")
+    }
+
+    Plasma5Support.DataSource {
+        id: seeder
+        engine: "executable"
+        connectedSources: []
+
+        onNewData: function (source, data) {
+            disconnectSource(source)
+            // Marked seeded whatever happened. A look that found nothing, or
+            // failed, must not become a search that runs again every start.
+            plasmoid.configuration.profilesSeeded = true
+
+            var stdout = (data["stdout"] || "").trim()
+            if (data["exit code"] !== 0 || stdout === "") {
+                return
+            }
+            try {
+                var found = JSON.parse(stdout)
+            } catch (e) {
+                return
+            }
+            var seeded = []
+            for (var i = 0; i < found.length; i++) {
+                if (found[i] && found[i].dir) {
+                    seeded.push({dir: found[i].dir,
+                                 name: found[i].name || found[i].dir,
+                                 enabled: true})
+                }
+            }
+            plasmoid.configuration.profiles = JSON.stringify(seeded)
+            root.refresh()
+            root.refreshUsage(true)
+        }
+    }
+
+    Component.onCompleted: if (!plasmoid.configuration.profilesSeeded) {
+        seeder.connectSource(shellQuote(finderPath) + " "
+                             + shellQuote(plasmoid.configuration.profileSearchPath || "~"))
+    }
+
     readonly property string usagePath: {
         var url = Qt.resolvedUrl("../scripts/claude-usage").toString()
         return url.replace(/^file:\/\//, "")
@@ -319,11 +372,11 @@ PlasmoidItem {
     // one JSON document quoted once is less to get wrong than an argument list
     // built out of both.
     readonly property string profilesEnv: {
-        // Never configured is not the same as configured down to nothing. The
-        // first wants the fallback, the second means what it says - and an
-        // unset variable is the only way to ask for the fallback, so an empty
-        // list has to be sent rather than left out.
-        if (profileList.length === 0) {
+        // Once the first-run look has happened the list is the whole truth,
+        // empty included - so it is always sent, and the collectors' own
+        // fallback is never reached. Before that there is nothing to send and
+        // the fallback covers the first moment of a fresh install.
+        if (!plasmoid.configuration.profilesSeeded && profileList.length === 0) {
             return ""
         }
         var slim = activeProfiles.map(function (p) {

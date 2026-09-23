@@ -250,9 +250,9 @@ KCM.SimpleKCM {
             }
         }
 
-        // Empty is a working state, not a broken one, and saying so here saves
-        // anyone wondering why the widget shows sessions before they have added
-        // anything.
+        // Empty means empty. It used to mean "fall back to ~/.claude", which
+        // the popup then showed under a name nobody had chosen while this page
+        // said there were none.
         QQC2.Label {
             Layout.fillWidth: true
             Layout.maximumWidth: Kirigami.Units.gridUnit * 26
@@ -260,7 +260,7 @@ KCM.SimpleKCM {
             visible: page.entries.length === 0
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("Empty, so the widget falls back to ~/.claude on its own. Search to take over from that.")
+            text: i18n("Nothing is being watched. Search, or name a directory below.")
         }
 
         Kirigami.AbstractCard {

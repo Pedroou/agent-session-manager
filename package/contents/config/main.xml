@@ -137,6 +137,13 @@
     <entry name="profiles" type="String">
       <default>[]</default>
     </entry>
+    <!-- Whether the first-run look for accounts has happened. Seeding once and
+         recording it is what lets an empty list mean "nothing", instead of
+         being indistinguishable from "never looked" - which is what made the
+         popup show an account the settings page did not list. -->
+    <entry name="profilesSeeded" type="Bool">
+      <default>false</default>
+    </entry>
     <entry name="profileSearchPath" type="String">
       <label>Where the Accounts page looks when asked to search. Searching is
       always a deliberate act: an account removed from the list has to stay

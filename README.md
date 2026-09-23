@@ -130,19 +130,21 @@ takes effect:
 
 ### Accounts
 
-One account needs no setup: left empty, the widget reads `~/.claude`, which is
-where Claude Code keeps its own.
+On first run the widget looks once for accounts and puts what it finds in the
+list, so there is nothing to set up for the common case and the list always says
+what is actually being read.
 
-More than one is the **Accounts** page. Point **Search** at a directory and it
+After that it is the **Accounts** page. Point **Search** at a directory and it
 looks one level down for anything Claude Code has written to - your home
 directory, by default, since `CLAUDE_CONFIG_DIR` is usually pointed at a sibling
 of `~/.claude`. Anything it finds joins the list, where each account can be
 renamed to something you will recognise, switched off without being forgotten,
 or removed. You can also just name a directory yourself.
 
-Searching only ever happens because you asked. An account you remove has to stay
-removed, and it cannot if something re-runs the search behind you - so nothing
-does.
+After that first look, searching only ever happens because you asked. An account
+you remove has to stay removed, and it cannot if something re-runs the search
+behind you - so nothing does, and an empty list means exactly that: nothing is
+watched.
 
 ## How it works
 
