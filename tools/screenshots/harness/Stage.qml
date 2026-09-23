@@ -538,7 +538,7 @@ Item {
         if (scenario === "panel") {
             // The panel bar in a state the popup shots never show, so the
             // "colours by how much is gone" setting is visible in the README.
-            s.push([function () { stage.widget.demoWorkPercent = 93 }, 800])
+            s.push([function () { stage.widget.demoWorkPercent = Demo.PANEL_PERCENT }, 800])
             s.push([function () { shot(panelHost, "panel") }, 700])
         } else if (scenario === "demo") {
             buildDemoScript(s)

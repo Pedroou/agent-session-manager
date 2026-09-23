@@ -11,9 +11,12 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOME_DIR="${RIG_HOME:-$HERE/home}"
 SCENARIO="$1"; FRAME_MS="${2:-50}"; SCALE="${3:-2}"
+# Only the panel scenario reads this; the social card wants a widget whose
+# usage bar agrees with the popup beside it.
+PANEL_PERCENT="${PANEL_PERCENT:-93}"
 PLUGIN_ID=io.github.pedroou.agentsessionmanager
 
-"$HERE/patch-package.py" "$HOME_DIR" "$SCENARIO" "$FRAME_MS"
+"$HERE/patch-package.py" "$HOME_DIR" "$SCENARIO" "$FRAME_MS" "$PANEL_PERCENT"
 rm -rf "$HOME_DIR/frames"; mkdir -p "$HOME_DIR/frames"
 
 # plasmawindowed is a unique DBus service: a second launch would wake the first

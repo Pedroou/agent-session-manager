@@ -39,7 +39,7 @@ def patch(path, *pairs):
     path.write_text(text)
 
 
-def main(home, scenario, frame_ms):
+def main(home, scenario, frame_ms, panel_percent=93):
     pkg = pathlib.Path(home) / ".local/share/plasma/plasmoids" / PLUGIN_ID
     if pkg.exists():
         shutil.rmtree(pkg)
@@ -182,9 +182,11 @@ def main(home, scenario, frame_ms):
         f'var SCENARIO = "{scenario}"\n'
         f'var OUT = "/home/dev/frames"\n'
         f'var FRAME_MS = {frame_ms}\n'
-        f'var NOW = {epoch}\n')
+        f'var NOW = {epoch}\n'
+        f'var PANEL_PERCENT = {panel_percent}\n')
     print(f"patched for scenario={scenario} frame_ms={frame_ms}")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2], int(sys.argv[3]))
+    main(sys.argv[1], sys.argv[2], int(sys.argv[3]),
+         int(sys.argv[4]) if len(sys.argv) > 4 else 93)

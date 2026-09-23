@@ -104,9 +104,21 @@ been upscaled, which is what made the first batch look soft.
 pointer against named items every frame. Setting the hover by hand a step early
 or late was visible.
 
+## The social card
+
+`preview.png` is a layout rather than a scenario, so it has its own script:
+
+```fish
+tools/screenshots/build-preview.py
+```
+
+It captures the widget fresh at 61% and takes the popup from the first frame of
+`demo.gif`. Both of those matter: the committed `panel.png` is deliberately at
+93% so the README can show the bar red, and a red bar beside a popup reading 61%
+reads as a mistake rather than as a different moment.
+
 ## Not covered here
 
-`logo.png` is a render of `package/contents/icons/…svg`, the chips in
-`docs/screenshots/chips/` are solid swatches of the six status colours, and
-`preview.png` is a composite built from `panel.png` and a popup still. Those are
-one-offs rather than scenarios; rebuild them by hand if they ever need to change.
+`logo.png` is a render of `package/contents/icons/…svg` and the chips in
+`docs/screenshots/chips/` are solid swatches of the six status colours. Both are
+one-offs; rebuild them by hand if they ever need to change.
