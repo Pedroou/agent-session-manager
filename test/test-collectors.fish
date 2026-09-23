@@ -524,6 +524,24 @@ set -e CLAUDE_PROFILES
 set -e CLAUDE_USAGE_FIXTURE
 
 echo
+echo "═══ Task 30: no accounts means no accounts ═══"
+setup
+record work 4300 busy would-show /home/u/a
+fake_proc 4300 430000
+# Every account switched off, or the last one removed. The fallback must not
+# answer that with ~/.claude: "nothing configured" and "configured down to
+# nothing" are different answers, and only the first one wants a guess.
+set -gx CLAUDE_PROFILES '[]'
+set out (collect)
+check "no sessions are reported" 0 (echo $out | jq '.sessions | length')
+check "and no accounts" 0 (echo $out | jq '.profiles | length')
+echo '{"limits": [{"kind": "session", "percent": 7, "is_active": true}]}' >$ROOT/usage.json
+set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
+check "plan usage has nothing to report either" 0 ($USAGE | jq '.profiles | length')
+set -e CLAUDE_USAGE_FIXTURE
+set -e CLAUDE_PROFILES
+
+echo
 echo "═══ Tripwire: the real session registry was untouched ═══"
 set -g HOME $REAL_HOME
 set -l leaked (__registry_records $REAL_HOME | string match -r '40[0-9]{2}\.json' | string join ' ')

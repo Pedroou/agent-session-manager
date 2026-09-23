@@ -52,7 +52,10 @@ end
 # Nothing configured: the directory Claude Code keeps its own account in, so
 # running this by hand still shows something. Only that one - any other path is
 # somebody's choice, and guessing at it is what this replaced.
-if test (count $profile_dirs) -eq 0
+# Only when nothing was handed over at all. An empty list is an answer - every
+# account turned off, or the last one removed - and answering it with a
+# directory nobody asked for is how "no accounts" became unreachable.
+if test (count $profile_dirs) -eq 0 -a -z "$CLAUDE_PROFILES"
     set profile_names default
     set profile_dirs $HOME/.claude
 end

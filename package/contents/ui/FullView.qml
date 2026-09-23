@@ -21,7 +21,11 @@ Item {
     // erring a little generous means the count you pick always fits rather than
     // landing a pixel short and scrolling.
     readonly property real nominalRow: Kirigami.Units.gridUnit * 2 + Kirigami.Units.smallSpacing * 2
-    readonly property real maxHeight: header.implicitHeight + footer.implicitHeight
+    // The footer only counts when it is on screen. It used to count either way,
+    // so turning plan usage off left the popup reserving room for a footer that
+    // was not there.
+    readonly property real maxHeight: header.implicitHeight
+                                      + (footer.visible ? footer.implicitHeight : 0)
                                       + nominalRow * plasmoid.configuration.maxSessions
 
     Layout.minimumWidth: Kirigami.Units.gridUnit * 17
@@ -164,8 +168,11 @@ Item {
             // overhangs the rows above it by the scrollbar's width the moment
             // the list is long enough to scroll.
             scrollbarInset: scroller.visible ? scroller.width - scroller.availableWidth : 0
+            // With no accounts there is nothing under the rule, and a rule with
+            // nothing under it is just a line across the bottom of the popup.
             visible: plasmoid.configuration.showUsage
                      && full.widget && full.widget.usage !== null
+                     && footer.profiles.length > 0
         }
 
         PlasmaExtras.PlaceholderMessage {

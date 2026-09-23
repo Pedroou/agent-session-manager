@@ -319,7 +319,11 @@ PlasmoidItem {
     // one JSON document quoted once is less to get wrong than an argument list
     // built out of both.
     readonly property string profilesEnv: {
-        if (activeProfiles.length === 0) {
+        // Never configured is not the same as configured down to nothing. The
+        // first wants the fallback, the second means what it says - and an
+        // unset variable is the only way to ask for the fallback, so an empty
+        // list has to be sent rather than left out.
+        if (profileList.length === 0) {
             return ""
         }
         var slim = activeProfiles.map(function (p) {

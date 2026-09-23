@@ -9,7 +9,7 @@
 <p>
 <img alt="KDE Plasma 6" src="https://img.shields.io/badge/KDE_Plasma-6-1d99f3?style=flat-square&logo=kde&logoColor=white&labelColor=2d333b">
 <img alt="QML and fish" src="https://img.shields.io/badge/QML_%2B_fish-41cd52?style=flat-square&logo=qt&logoColor=white&labelColor=2d333b">
-<img alt="144 tests" src="https://img.shields.io/badge/tests-144_passing-3fb950?style=flat-square&labelColor=2d333b">
+<img alt="147 tests" src="https://img.shields.io/badge/tests-147_passing-3fb950?style=flat-square&labelColor=2d333b">
 <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue?style=flat-square&labelColor=2d333b"></a>
 </p>
 
@@ -175,7 +175,7 @@ Everything with a decision in it lives in two fish collectors and two Qt-free
 JavaScript files, all four testable without a running Plasma shell:
 
 ```fish
-fish --no-config test/test-collectors.fish   # 93 assertions
+fish --no-config test/test-collectors.fish   # 96 assertions
 node --test test/sessions.test.js            # 30
 node --test test/usage.test.js               # 21
 ```
