@@ -73,8 +73,8 @@ test("a reset already due does not count backwards", () => {
 
 test("every profile state names its own fix", () => {
     assert.equal(Usage.stateMessage(profile()), "")
-    assert.match(Usage.stateMessage(profile({state: "absent"})), /Not signed in/)
-    assert.match(Usage.stateMessage(profile({state: "expired"})), /Signed out/)
+    assert.equal(Usage.stateMessage(profile({state: "absent"})), "Not signed in")
+    assert.match(Usage.stateMessage(profile({state: "expired"})), /run claude/)
     assert.match(Usage.stateMessage(profile({state: "error"})), /Couldn't reach/)
     assert.match(Usage.stateMessage(profile({bars: []})), /no limits/)
 })
@@ -177,23 +177,4 @@ test("an account is shown by its name and identified by its directory", () => {
     // No name is not a crash: the directory is at least true.
     assert.equal(Usage.displayName({id: "/home/u/.claude-side"}), "/home/u/.claude-side")
     assert.equal(Usage.displayName(null), "")
-})
-
-// Only two states are a login away. "Couldn't reach the usage API" is a network
-// problem, and a login would not touch it - offering one would be a button that
-// does nothing.
-test("a sign-in is offered exactly where it would help", () => {
-    const at = (state) => Usage.signInDir({id: "/home/u/.claude-work", state: state})
-    assert.equal(at("expired"), "/home/u/.claude-work")
-    assert.equal(at("absent"), "/home/u/.claude-work")
-    assert.equal(at("error"), "")
-    assert.equal(at("ok"), "")
-    assert.equal(Usage.signInDir(null), "")
-    assert.equal(Usage.signInDir({state: "expired"}), "")
-
-    // And the message says so, because the message is the button.
-    for (const state of ["expired", "absent"]) {
-        assert.match(Usage.stateMessage({state: state, bars: []}), /click/)
-    }
-    assert.doesNotMatch(Usage.stateMessage({state: "error", bars: []}), /click/)
 })

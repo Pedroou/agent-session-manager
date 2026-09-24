@@ -14,11 +14,6 @@ RowLayout {
 
     property var bar
     property string message: ""
-    // Non-empty when this account can be signed back in, in which case the
-    // message itself is the button - there is nowhere else on the row to put
-    // one, and the message is already saying what is wrong.
-    property string signInDir: ""
-    signal signInRequested(string dir)
     property double now: Date.now()
     // True when these bars are the last good reading rather than a fresh one.
     property bool stale: false
@@ -36,34 +31,12 @@ RowLayout {
     spacing: Kirigami.Units.smallSpacing
 
     PlasmaComponents3.Label {
-        id: messageLabel
         Layout.fillWidth: true
         visible: usage.bar === null || usage.message !== ""
         text: usage.message
-        font.family: Kirigami.Theme.smallFont.family
-        font.pointSize: Kirigami.Theme.smallFont.pointSize
-        font.underline: usage.signInDir !== "" && messageHover.hovered
-        // Deliberately not linkColor. On a dimmed footer row the theme's blue
-        // was harder to read than the message it replaced, in both states. The
-        // pointer, the underline on hover and the tooltip carry the affordance.
+        font: Kirigami.Theme.smallFont
         color: Kirigami.Theme.disabledTextColor
         elide: Text.ElideRight
-
-        HoverHandler {
-            id: messageHover
-            enabled: usage.signInDir !== ""
-            cursorShape: Qt.PointingHandCursor
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            enabled: usage.signInDir !== ""
-            onClicked: usage.signInRequested(usage.signInDir)
-        }
-
-        PlasmaComponents3.ToolTip.text: i18n("Opens a terminal for this account, where Claude Code will ask you to log in")
-        PlasmaComponents3.ToolTip.visible: messageHover.hovered
-        PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
     }
 
     PlasmaComponents3.Label {

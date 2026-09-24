@@ -217,11 +217,6 @@ expectation is that it stops working one day rather than that it keeps working
 forever. See [Anthropic's legal and compliance
 page](https://code.claude.com/docs/en/legal-and-compliance).
 
-If an account's token expires, the footer says so and the message is a button:
-clicking it opens a terminal for that account, where Claude Code asks you to log
-in. Nothing is automated beyond opening the right door - the login is a browser
-round trip that Claude Code drives itself.
-
 It is on by default because it is half of what the widget is for, and it is one
 checkbox to turn off: **Configure… → Popup → Plan usage for each profile**, plus
 **Panel → Plan Usage Bar** for the strip under the bars. The session list is

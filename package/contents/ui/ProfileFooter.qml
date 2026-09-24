@@ -205,12 +205,6 @@ ColumnLayout {
                         Layout.alignment: Qt.AlignVCenter
                         bar: profileRow.bar
                         message: profileRow.message
-                        signInDir: Usage.signInDir(profileRow.modelData)
-                        onSignInRequested: function (dir) {
-                            if (footer.widget) {
-                                footer.widget.signIn(dir)
-                            }
-                        }
                         stale: profileRow.modelData.stale === true
                         since: profileRow.modelData.since || 0
                         now: footer.widget ? footer.widget.now : Date.now()
