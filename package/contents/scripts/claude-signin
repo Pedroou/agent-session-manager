@@ -27,8 +27,28 @@ if not test -d $dir
     exit 1
 end
 
-if not command -q claude
-    echo "claude is not on \$PATH" >&2
+# Resolved to an absolute path, and launched directly, for two reasons.
+#
+# A terminal started from the panel inherits the session's PATH, not the one a
+# login shell would build - so ~/.local/bin, where Claude Code installs itself,
+# is usually missing and the terminal reports "could not find claude".
+#
+# And `claude` is quite often a shell function rather than the binary: the
+# profile switchers people write around it pick an account of their own and
+# unset $CLAUDE_CONFIG_DIR while doing it, which is exactly the variable this
+# script exists to set. Going straight to the binary steps around both.
+set -l bin
+for candidate in (command -v claude 2>/dev/null) \
+                 $HOME/.local/bin/claude \
+                 $HOME/.claude/local/claude
+    if test -n "$candidate" -a -x "$candidate"
+        set bin $candidate
+        break
+    end
+end
+
+if test -z "$bin"
+    echo "cannot find the claude binary (looked on \$PATH, ~/.local/bin, ~/.claude/local)" >&2
     exit 1
 end
 
@@ -50,8 +70,8 @@ end
 # Detached, so the widget's poll is not left waiting on a terminal the user may
 # sit in for a minute.
 if test "$dir" = "$HOME/.claude"
-    $launcher claude </dev/null >/dev/null 2>&1 &
+    $launcher $bin </dev/null >/dev/null 2>&1 &
 else
-    CLAUDE_CONFIG_DIR=$dir $launcher claude </dev/null >/dev/null 2>&1 &
+    CLAUDE_CONFIG_DIR=$dir $launcher $bin </dev/null >/dev/null 2>&1 &
 end
 disown

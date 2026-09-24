@@ -43,8 +43,10 @@ RowLayout {
         font.family: Kirigami.Theme.smallFont.family
         font.pointSize: Kirigami.Theme.smallFont.pointSize
         font.underline: usage.signInDir !== "" && messageHover.hovered
-        color: usage.signInDir !== "" ? Kirigami.Theme.linkColor
-                                      : Kirigami.Theme.disabledTextColor
+        // Deliberately not linkColor. On a dimmed footer row the theme's blue
+        // was harder to read than the message it replaced, in both states. The
+        // pointer, the underline on hover and the tooltip carry the affordance.
+        color: Kirigami.Theme.disabledTextColor
         elide: Text.ElideRight
 
         HoverHandler {
