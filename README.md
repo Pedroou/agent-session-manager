@@ -199,7 +199,7 @@ assumed.
 [`docs/design.md`](docs/design.md) is the full write-up, and
 [`docs/limitations.md`](docs/limitations.md) is honest about what it cannot do.
 
-## Privacy, and one thing worth knowing
+## Privacy
 
 **What leaves your machine.** Only the plan-usage bar. It asks Anthropic for your
 limits using the login Claude Code already stores; the token goes to `curl`
@@ -216,6 +216,11 @@ for your own numbers, but it is not a use Anthropic has blessed, and the honest
 expectation is that it stops working one day rather than that it keeps working
 forever. See [Anthropic's legal and compliance
 page](https://code.claude.com/docs/en/legal-and-compliance).
+
+If an account's token expires, the footer says so and the message is a button:
+clicking it opens a terminal for that account, where Claude Code asks you to log
+in. Nothing is automated beyond opening the right door - the login is a browser
+round trip that Claude Code drives itself.
 
 It is on by default because it is half of what the widget is for, and it is one
 checkbox to turn off: **Configure… → Popup → Plan usage for each profile**, plus

@@ -316,8 +316,30 @@ PlasmoidItem {
         connectedSources: []
         onNewData: function (source, data) {
             disconnectSource(source)
+            // A terminal that could not be launched has to say so: the whole
+            // action happens in another window, so silence is indistinguishable
+            // from it having worked.
+            if (data["exit code"] !== 0) {
+                var why = (data["stderr"] || "").trim().split("\n")[0]
+                root.notify(why !== "" ? why : i18n("That didn't work."))
+            }
             root.refresh()
         }
+    }
+
+    // Put the user in front of a terminal with $CLAUDE_CONFIG_DIR already set.
+    // The login is a browser round trip that Claude Code drives itself, so
+    // there is nothing here to automate beyond opening the right door.
+    readonly property string signInPath: {
+        var url = Qt.resolvedUrl("../scripts/claude-signin").toString()
+        return url.replace(/^file:\/\//, "")
+    }
+
+    function signIn(dir) {
+        if (!dir) {
+            return
+        }
+        actions.connectSource(shellQuote(signInPath) + " " + shellQuote(dir))
     }
 
     // SIGTERM is the graceful path: Claude Code registers a handler for it that
@@ -349,7 +371,12 @@ PlasmoidItem {
 
     function copyToClipboard(text, what) {
         clipboard.put(text)
-        copyNotice = (what && what !== "") ? i18n("%1 copied", what) : i18n("Copied")
+        notify((what && what !== "") ? i18n("%1 copied", what) : i18n("Copied"))
+    }
+
+    // The same pill, for anything worth a word rather than a dialog.
+    function notify(text) {
+        copyNotice = text
         copyNoticeTimer.restart()
     }
 

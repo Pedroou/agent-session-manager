@@ -74,9 +74,9 @@ function stateMessage(profile) {
     case "ok":
         return (profile.bars && profile.bars.length) ? "" : "This plan reports no limits"
     case "absent":
-        return "Not signed in"
+        return "Not signed in - click to sign in"
     case "expired":
-        return "Signed out - run claude to sign back in"
+        return "Signed out - click to sign back in"
     default:
         return "Couldn't reach the usage API"
     }
@@ -123,6 +123,17 @@ function selectedProfile(usage, wantedId) {
 function selectedId(usage, wantedId) {
     var profile = selectedProfile(usage, wantedId)
     return profile ? profile.id : ""
+}
+
+// The config directory to sign back into, or "" when signing in is not the
+// answer. Only two states are: no credentials at all, and credentials whose
+// token has expired. "Couldn't reach the usage API" is a network problem and a
+// login would not touch it.
+function signInDir(profile) {
+    if (!profile || !profile.id) {
+        return ""
+    }
+    return (profile.state === "expired" || profile.state === "absent") ? profile.id : ""
 }
 
 // What to call an account on screen. The id is its directory, which is right
@@ -202,6 +213,7 @@ if (typeof module !== "undefined" && module.exports) {
         selectedProfile: selectedProfile,
         selectedId: selectedId,
         displayName: displayName,
+        signInDir: signInDir,
         panelBar: panelBar,
         pastThreshold: pastThreshold,
         merge: merge
