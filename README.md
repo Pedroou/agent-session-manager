@@ -138,9 +138,16 @@ what is actually being read.
 After that it is the **Accounts** page. Point **Search** at a directory and it
 looks one level down for anything Claude Code has written to - your home
 directory, by default, since `CLAUDE_CONFIG_DIR` is usually pointed at a sibling
-of `~/.claude`. Anything it finds joins the list, where each account can be
-renamed to something you will recognise, switched off without being forgotten,
-or removed. You can also just name a directory yourself.
+of `~/.claude`.
+
+What it finds is listed but not switched on: results are marked **found** and sit
+there until you press **+**. A search is a question, not an instruction, and
+wiring up every directory it happens to turn up is not an answer you asked for.
+Press **-** on a result to drop it instead. Naming a directory yourself *is* an
+instruction, so that one goes straight in.
+
+Added accounts can be renamed to something you will recognise, switched off
+without being forgotten, or removed.
 
 After that first look, searching only ever happens because you asked. An account
 you remove has to stay removed, and it cannot if something re-runs the search
