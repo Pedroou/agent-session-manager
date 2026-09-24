@@ -1,0 +1,44 @@
+name: release
+
+# Cutting a release is `tools/release.fish <version>` followed by pushing the
+# tag; this turns the tag into a GitHub release with the .plasmoid attached.
+#
+# The check below is the point of it. KPackage only replaces files when the
+# incoming version is strictly newer than the installed one, and KNewStuff
+# reports success either way - so a release whose KPlugin.Version was not
+# bumped installs nothing while telling every user it worked. release.fish
+# writes the tag and the metadata from one string so they cannot drift, and
+# this refuses the release if they ever do.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the .plasmoid
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          declared=$(jq -r '.KPlugin.Version' package/metadata.json)
+          if [ "$declared" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match KPlugin.Version $declared"
+            exit 1
+          fi
+          id=$(jq -r '.KPlugin.Id' package/metadata.json)
+          artifact="$id-$version.plasmoid"
+          # The archive is the package directory's contents: KPackage copes with
+          # one top-level wrapper directory but not with two top-level entries.
+          (cd package && zip -qr "../$artifact" . -x '*.git*')
+          echo "ARTIFACT=$artifact" >> "$GITHUB_ENV"
+
+      # gh is preinstalled on the runner, so this needs no third-party action -
+      # which suits a project whose whole dependency list is fish, jq and curl.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$ARTIFACT" --generate-notes --verify-tag

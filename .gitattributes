@@ -1,0 +1,15 @@
+# The language bar should say what the widget is written in.
+#
+# The screenshot rig is tooling that produces docs/, not part of the thing
+# anyone installs, and it was putting Python and shell on the front page of a
+# QML project.
+tools/** linguist-vendored
+
+# The collectors have no extension, only a fish shebang, which Linguist reads as
+# generic shell. They are fish, and they use fish builtins that no POSIX shell
+# has - which is the whole reason the dependency list names it.
+package/contents/scripts/* linguist-language=fish
+install.fish linguist-language=fish
+
+# Generated, and enormous next to the source.
+docs/screenshots/** linguist-documentation
