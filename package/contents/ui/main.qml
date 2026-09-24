@@ -50,8 +50,11 @@ PlasmoidItem {
             return []
         }
     }
+    // `found` marks an account a search turned up but nobody has added yet. It
+    // sits in the settings list so it can be named and added, and it is not an
+    // account until then.
     readonly property var activeProfiles: profileList.filter(function (p) {
-        return p && p.dir && p.enabled !== false
+        return p && p.dir && p.enabled !== false && p.found !== true
     })
 
     // Which limit each account tracks, keyed by its config directory. A map

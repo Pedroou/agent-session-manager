@@ -60,8 +60,12 @@ KCM.SimpleKCM {
     function copyEntries() {
         var out = []
         for (var i = 0; i < entries.length; i++) {
-            out.push({dir: entries[i].dir, name: entries[i].name,
-                      enabled: entries[i].enabled !== false})
+            var entry = {dir: entries[i].dir, name: entries[i].name,
+                         enabled: entries[i].enabled !== false}
+            if (entries[i].found === true) {
+                entry.found = true
+            }
+            out.push(entry)
         }
         return out
     }
@@ -75,21 +79,52 @@ KCM.SimpleKCM {
         return false
     }
 
-    function addFound(found) {
+    // A search puts what it finds in the list without adding it. Searching a
+    // directory is a question, not an instruction, and answering it by wiring
+    // up every account it happens to contain is the widget deciding something
+    // the user did not ask for.
+    function stageFound(found) {
         var next = copyEntries()
-        var added = 0
+        var staged = 0
         for (var i = 0; i < found.length; i++) {
             if (!found[i] || !found[i].dir || hasDir(found[i].dir)) {
                 continue
             }
             next.push({dir: found[i].dir, name: found[i].name || found[i].dir,
-                       enabled: true})
-            added += 1
+                       enabled: true, found: true})
+            staged += 1
         }
-        if (added > 0) {
+        if (staged > 0) {
             commit(next)
         }
-        return added
+        return staged
+    }
+
+    // Naming one outright is an instruction, so it goes straight in.
+    function addOne(entry) {
+        if (!entry || !entry.dir || hasDir(entry.dir)) {
+            return false
+        }
+        var next = copyEntries()
+        next.push({dir: entry.dir, name: entry.name || entry.dir, enabled: true})
+        commit(next)
+        return true
+    }
+
+    function confirmAt(index) {
+        var next = copyEntries()
+        delete next[index].found
+        commit(next)
+    }
+
+    function stagedCount() {
+        var n = 0
+        for (var i = 0; i < entries.length; i++) {
+            if (entries[i].found === true) {
+                n += 1
+            }
+        }
+        return n
     }
 
     function removeAt(index) {
@@ -152,16 +187,23 @@ KCM.SimpleKCM {
                 return
             }
 
-            var added = page.addFound(found)
-            if (added === 0) {
-                page.notice = i18n("Nothing new: already in the list.")
-            } else if (added === 1) {
-                page.notice = i18n("Added 1 account.")
-            } else {
-                page.notice = i18n("Added %1 accounts.", added)
-            }
             if (page.pending === "add") {
-                manualPath.text = ""
+                if (page.addOne(found[0])) {
+                    page.notice = i18n("Added.")
+                    manualPath.text = ""
+                } else {
+                    page.notice = i18n("Already in the list.")
+                }
+                return
+            }
+
+            var staged = page.stageFound(found)
+            if (staged === 0) {
+                page.notice = i18n("Nothing new: already in the list.")
+            } else if (staged === 1) {
+                page.notice = i18n("Found 1 account. Press + to add it.")
+            } else {
+                page.notice = i18n("Found %1 accounts. Press + to add them.", staged)
             }
         }
     }
@@ -202,7 +244,11 @@ KCM.SimpleKCM {
             }
         }
 
-        Kirigami.Separator { Layout.fillWidth: true }
+        Kirigami.Separator {
+            Layout.fillWidth: true
+            Layout.topMargin: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: Kirigami.Units.largeSpacing
+        }
 
         Kirigami.Heading {
             level: 4
@@ -237,7 +283,11 @@ KCM.SimpleKCM {
             text: page.notice
         }
 
-        Kirigami.Separator { Layout.fillWidth: true }
+        Kirigami.Separator {
+            Layout.fillWidth: true
+            Layout.topMargin: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: Kirigami.Units.largeSpacing
+        }
 
         RowLayout {
             Layout.fillWidth: true
@@ -245,8 +295,12 @@ KCM.SimpleKCM {
             Kirigami.Heading {
                 level: 4
                 Layout.fillWidth: true
-                text: page.entries.length === 1 ? i18n("1 account")
-                                                : i18n("%1 accounts", page.entries.length)
+                text: {
+                    var staged = page.stagedCount()
+                    var added = page.entries.length - staged
+                    var label = added === 1 ? i18n("1 account") : i18n("%1 accounts", added)
+                    return staged > 0 ? i18n("%1, %2 found", label, staged) : label
+                }
             }
         }
 
@@ -257,10 +311,14 @@ KCM.SimpleKCM {
             Layout.fillWidth: true
             Layout.maximumWidth: Kirigami.Units.gridUnit * 26
             wrapMode: Text.WordWrap
-            visible: page.entries.length === 0
+            // Search results do not count: the list can be full of them and
+            // still have nothing wired up.
+            visible: page.entries.length - page.stagedCount() === 0
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("Nothing is being watched. Search, or name a directory below.")
+            text: page.stagedCount() > 0
+                  ? i18n("Nothing added yet. Press + on a result to add it.")
+                  : i18n("Nothing is being watched. Search, or name a directory below.")
         }
 
         Kirigami.AbstractCard {
@@ -282,11 +340,17 @@ KCM.SimpleKCM {
                     delegate: RowLayout {
                         required property int index
                         required property var modelData
+                        // Found by a search and not added yet. Still in the
+                        // list, still removable, but the widget does not read
+                        // it until the plus is pressed.
+                        readonly property bool staged: modelData.found === true
                         width: ListView.view.width
                         spacing: Kirigami.Units.smallSpacing
 
                         QQC2.CheckBox {
-                            checked: modelData.enabled !== false
+                            checked: !staged && modelData.enabled !== false
+                            // Nothing to switch on or off until it is added.
+                            enabled: !staged
                             // Off keeps the account in the list but out of the
                             // widget, which is what you want for one you are
                             // not using this week.
@@ -300,6 +364,9 @@ KCM.SimpleKCM {
                             Layout.preferredWidth: Kirigami.Units.gridUnit * 7
                             text: modelData.name || ""
                             placeholderText: i18n("Name")
+                            // Editable while staged on purpose: naming it
+                            // before adding it is the natural order.
+                            opacity: staged ? 0.7 : 1
                             onEditingFinished: if (text !== modelData.name) {
                                 page.updateAt(index, "name", text)
                             }
@@ -312,7 +379,8 @@ KCM.SimpleKCM {
                             maximumLineCount: 1
                             font: Kirigami.Theme.smallFont
                             color: Kirigami.Theme.disabledTextColor
-                            opacity: modelData.enabled !== false ? 1 : 0.5
+                            opacity: staged ? 0.5
+                                            : (modelData.enabled !== false ? 1 : 0.5)
 
                             QQC2.ToolTip.text: modelData.dir
                             QQC2.ToolTip.visible: dirHover.hovered
@@ -320,10 +388,36 @@ KCM.SimpleKCM {
                             HoverHandler { id: dirHover }
                         }
 
+                        QQC2.Label {
+                            visible: staged
+                            text: i18n("found")
+                            font: Kirigami.Theme.smallFont
+                            color: Kirigami.Theme.neutralTextColor
+                        }
+
+                        // Kept in the layout when it does nothing, rather than
+                        // hidden: a button that appears and disappears shifts
+                        // the remove button under the pointer.
+                        QQC2.ToolButton {
+                            icon.name: "list-add"
+                            display: QQC2.AbstractButton.IconOnly
+                            opacity: staged ? 1 : 0
+                            enabled: staged
+                            text: i18n("Add this account")
+                            QQC2.ToolTip.text: text
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                            onClicked: page.confirmAt(index)
+                        }
+
                         QQC2.ToolButton {
                             icon.name: "list-remove"
                             display: QQC2.AbstractButton.IconOnly
-                            text: i18n("Remove from the list")
+                            // Works on a search result too. Nothing changes for
+                            // the widget, but a list you cannot tidy is worse
+                            // than one you can.
+                            text: staged ? i18n("Discard this result")
+                                         : i18n("Remove from the list")
                             QQC2.ToolTip.text: text
                             QQC2.ToolTip.visible: hovered
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
