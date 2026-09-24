@@ -5,6 +5,8 @@ import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
 import org.kde.plasma.plasma5support as Plasma5Support
 
+import "../code/sessions.js" as Sessions
+
 // The accounts to watch.
 //
 // Claude Code's own mechanism for a second account is $CLAUDE_CONFIG_DIR, and
@@ -390,38 +392,51 @@ KCM.SimpleKCM {
 
                         QQC2.Label {
                             visible: staged
-                            text: i18n("found")
+                            text: i18n("Found")
                             font: Kirigami.Theme.smallFont
-                            color: Kirigami.Theme.neutralTextColor
+                            // The widget's own yellow, not the theme's neutral.
+                            // Neutral is an orange, and orange reads as
+                            // something being wrong - this is a note.
+                            color: Sessions.defaultColor("running")
+                            // Its own air, because two tool buttons sitting
+                            // side by side carry their padding between them and
+                            // a label next to one does not.
+                            Layout.rightMargin: Kirigami.Units.largeSpacing
                         }
 
-                        // Kept in the layout when it does nothing, rather than
-                        // hidden: a button that appears and disappears shifts
-                        // the remove button under the pointer.
-                        QQC2.ToolButton {
-                            icon.name: "list-add"
-                            display: QQC2.AbstractButton.IconOnly
-                            opacity: staged ? 1 : 0
-                            enabled: staged
-                            text: i18n("Add this account")
-                            QQC2.ToolTip.text: text
-                            QQC2.ToolTip.visible: hovered
-                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                            onClicked: page.confirmAt(index)
-                        }
+                        // The pair sit together, and apart from everything
+                        // else: they are one control with two outcomes.
+                        RowLayout {
+                            spacing: 0
 
-                        QQC2.ToolButton {
-                            icon.name: "list-remove"
-                            display: QQC2.AbstractButton.IconOnly
-                            // Works on a search result too. Nothing changes for
-                            // the widget, but a list you cannot tidy is worse
-                            // than one you can.
-                            text: staged ? i18n("Discard this result")
-                                         : i18n("Remove from the list")
-                            QQC2.ToolTip.text: text
-                            QQC2.ToolTip.visible: hovered
-                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                            onClicked: page.removeAt(index)
+                            // Kept in the layout when it does nothing, rather
+                            // than hidden: a button that appears and disappears
+                            // shifts the remove button under the pointer.
+                            QQC2.ToolButton {
+                                icon.name: "list-add"
+                                display: QQC2.AbstractButton.IconOnly
+                                opacity: staged ? 1 : 0
+                                enabled: staged
+                                text: i18n("Add this account")
+                                QQC2.ToolTip.text: text
+                                QQC2.ToolTip.visible: hovered
+                                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                                onClicked: page.confirmAt(index)
+                            }
+
+                            QQC2.ToolButton {
+                                icon.name: "list-remove"
+                                display: QQC2.AbstractButton.IconOnly
+                                // Works on a search result too. Nothing changes
+                                // for the widget, but a list you cannot tidy is
+                                // worse than one you can.
+                                text: staged ? i18n("Discard this result")
+                                             : i18n("Remove from the list")
+                                QQC2.ToolTip.text: text
+                                QQC2.ToolTip.visible: hovered
+                                QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                                onClicked: page.removeAt(index)
+                            }
                         }
                     }
                 }
