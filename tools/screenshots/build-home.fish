@@ -92,6 +92,16 @@ for dir in $home/.claude $home/.claude-personal
     echo '{}' >$dir/.claude.json
 end
 
+# A plan-usage response, for anything driving the real collector rather than
+# setting widget.usage from the stage. $CLAUDE_USAGE_FIXTURE makes claude-usage
+# read this instead of calling Anthropic, so nothing here touches the network.
+jq -n '{limits: [
+    {kind: "session",      percent: 61, severity: "", resets_at: null, is_active: true},
+    {kind: "weekly_all",   percent: 24, severity: "", resets_at: null, is_active: false},
+    {kind: "weekly_scoped", percent: 8, severity: "", resets_at: null, is_active: false,
+     scope: {model: {display_name: "Fable"}}}
+]}' >$home/usage.json
+
 cp ~/.config/kdeglobals $home/.config/
 printf '\n[Icons]\nTheme=breeze-dark\n' >>$home/.config/kdeglobals
 # Subpixel antialiasing paints coloured fringes down every glyph edge. Invisible

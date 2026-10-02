@@ -192,8 +192,14 @@ ColumnLayout {
                                 delegate: PlasmaComponents3.MenuItem {
                                     required property var modelData
                                     text: modelData.label
-                                    checkable: true
-                                    checked: modelData.id === footer.barIdFor(profileRow.modelData.id)
+                                    // Not checkboxes. Only one limit can be
+                                    // shown at a time, so a set of boxes
+                                    // promises a choice the control does not
+                                    // offer - the current one is marked the way
+                                    // the selected account is marked above.
+                                    font.weight: profileRow.bar
+                                                 && modelData.id === profileRow.bar.id
+                                                 ? Font.DemiBold : Font.Normal
                                     onTriggered: footer.setBarFor(profileRow.modelData.id, modelData.id)
                                 }
                             }

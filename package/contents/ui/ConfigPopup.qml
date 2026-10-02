@@ -17,6 +17,7 @@ KCM.SimpleKCM {
     property alias cfg_maxSessions: popupHeight.value
     property alias cfg_showDone: showDone.checked
     property alias cfg_showUsage: showUsage.checked
+    property string cfg_usageDefaultBar: "session"
     property alias cfg_detailRepository: detailRepository.checked
     property alias cfg_detailBranch: detailBranch.checked
     property alias cfg_detailSession: detailSession.checked
@@ -69,6 +70,50 @@ KCM.SimpleKCM {
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
             text: i18n("Uses the network: Requests Anthropic for your plan limits every five minutes through the current Claude Code login.")
+        }
+
+        // Here rather than on the Panel page, even though the panel strip
+        // follows it too: this decides *which limit* plan usage means, and the
+        // control it is the default for - the one behind the dots in the footer
+        // - is in the popup.
+        QQC2.ComboBox {
+            id: defaultBar
+            Kirigami.FormData.label: i18n("Limit Shown:")
+            enabled: showUsage.checked
+            textRole: "label"
+            valueRole: "value"
+
+            // Only the two every plan has. A scoped limit is per-model and not
+            // every plan carries one, so defaulting to a limit a plan lacks
+            // would silently fall through to something else - which is the
+            // behaviour this setting exists to replace.
+            model: [
+                {label: i18n("Session"), value: "session"},
+                {label: i18n("Weekly"), value: "weekly"}
+            ]
+
+            // A ComboBox cannot be aliased to a string setting, so the two are
+            // kept in step by hand, the same way the panel threshold is.
+            Component.onCompleted: defaultBar.currentIndex = defaultBar.indexOfValue(page.cfg_usageDefaultBar)
+            onActivated: page.cfg_usageDefaultBar = defaultBar.currentValue
+
+            Connections {
+                target: page
+                function onCfg_usageDefaultBarChanged() {
+                    var i = defaultBar.indexOfValue(page.cfg_usageDefaultBar)
+                    if (i >= 0 && i !== defaultBar.currentIndex) {
+                        defaultBar.currentIndex = i
+                    }
+                }
+            }
+        }
+
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            color: Kirigami.Theme.disabledTextColor
+            text: i18n("What an account shows until you pick a limit for it behind the dots in the footer. A pick made there wins, and is remembered per account.")
         }
 
         Item {

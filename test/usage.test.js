@@ -178,3 +178,29 @@ test("an account is shown by its name and identified by its directory", () => {
     assert.equal(Usage.displayName({id: "/home/u/.claude-side"}), "/home/u/.claude-side")
     assert.equal(Usage.displayName(null), "")
 })
+
+// The chain the default setting relies on. barIdFor hands barFor either the
+// account's stored pick or the configured default, so the order that matters
+// is: an id the plan has wins outright, and only an id it lacks falls through
+// to the API's own active flag.
+test("a wanted limit beats the one the API calls active", () => {
+    const p = profile()
+    p.bars.forEach(b => { b.active = b.id === "weekly" })
+
+    // The default the widget ships with, against a plan where weekly is the
+    // one counting. Before this was configurable the active flag won, so the
+    // bar quietly changed which limit it measured when the flag moved.
+    assert.equal(Usage.barFor(p, "session").label, "Session")
+    assert.equal(Usage.barFor(p, "weekly").label, "Weekly")
+
+    // A default the plan does not carry still falls through rather than
+    // leaving the row blank, which is why the setting offers only the two
+    // every plan has.
+    assert.equal(Usage.barFor(p, "scoped:Nope").label, "Weekly")
+
+    // And the panel resolves it identically, so the strip and the footer
+    // cannot end up measuring different limits.
+    const usage = {profiles: [Object.assign(p, {id: "/home/u/.claude"})]}
+    assert.equal(Usage.panelBar(usage, "/home/u/.claude", "session").label, "Session")
+    assert.equal(Usage.panelBar(usage, "/home/u/.claude", "scoped:Nope").label, "Weekly")
+})

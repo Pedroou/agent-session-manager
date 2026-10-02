@@ -70,7 +70,7 @@ PlasmoidItem {
     }
 
     function barIdFor(profileId) {
-        return usageBars[profileId] || ""
+        return usageBars[profileId] || plasmoid.configuration.usageDefaultBar
     }
 
     function setBarFor(profileId, barId) {

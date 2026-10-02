@@ -89,8 +89,10 @@ blanks every name and path for screen-sharing.
 ## Plan usage
 
 At the bottom, how much of your plan each account has used. Pick the limit each
-one tracks - session, weekly, or a model-scoped one - and the panel bar follows
-whichever you chose.
+one tracks - session, weekly, or a model-scoped one - behind the dots on its
+row, and the panel bar follows whichever you chose. Accounts you have not picked
+for show the default, which is the session limit until you change it on the
+Popup page.
 
 <div align="center">
 <img src="docs/screenshots/usage.gif" alt="The usage footer opened to show both accounts, their bars sliding between readings and changing colour" width="660">
@@ -124,8 +126,9 @@ takes effect:
 - **Panel** - the session count and its size, and the usage bar: whether to show
   it, how used the limit must be before it appears, and whether it colours by
   severity.
-- **Popup** - how many sessions it shows before scrolling, which rows an expanded
-  session has, and where the branch goes.
+- **Popup** - how many sessions it shows before scrolling, which limit plan
+  usage shows by default, which rows an expanded session has, and where the
+  branch goes.
 - **Accounts** - which config directories to watch.
 - **Colours** - all six status colours.
 

@@ -46,6 +46,7 @@ KCM.SimpleKCM {
     property string cfg_usageProfile: ""
     property bool cfg_usageExpanded: false
     property string cfg_usageBars: "{}"
+    property string cfg_usageDefaultBar: "session"
     property string cfg_profileSearchPath: "~"
     function resetToDefaults() {
         interval.value = 5
@@ -81,6 +82,7 @@ KCM.SimpleKCM {
         page.cfg_usageProfile = ""
         page.cfg_usageExpanded = false
         page.cfg_usageBars = "{}"
+        page.cfg_usageDefaultBar = "session"
         page.cfg_profileSearchPath = "~"
         // The account list is deliberately not in here. It is the only setting
         // a person builds by hand rather than picks, and putting it one stray

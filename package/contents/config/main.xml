@@ -126,6 +126,15 @@
     <entry name="usageBars" type="String">
       <default>{}</default>
     </entry>
+    <!-- The limit an account shows before anyone picks one for it.
+         Without this the fallback was the API's own "is_active" flag, which
+         moves on its own - so the bar silently changed which limit it was
+         measuring, and the picker showed nothing selected because nobody had
+         selected anything. Session is the one that moves hour to hour, which is
+         the one worth glancing at. -->
+    <entry name="usageDefaultBar" type="String">
+      <default>session</default>
+    </entry>
 
     <!-- The accounts to read.
          Claude Code's own mechanism for a second account is $CLAUDE_CONFIG_DIR,
