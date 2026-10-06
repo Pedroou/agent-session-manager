@@ -168,7 +168,34 @@ PlasmoidItem {
     }
 
     toolTipMainText: i18n("Agent Session Manager")
-    toolTipSubText: failure !== "" ? failure : Sessions.tooltipLines(shownCounts)
+    // The panel's usage strip can be switched on, past its threshold, and still
+    // have nothing to draw: an account whose token has expired reports no limits
+    // at all, so the strip simply is not there - and nothing distinguishes that
+    // from "below the threshold" or "turned off". The tooltip is where the panel
+    // explains itself, so it says which.
+    readonly property string usageBlocked: {
+        if (!plasmoid.configuration.panelUsage || usage === null) {
+            return ""
+        }
+        var profile = Usage.selectedProfile(usage, plasmoid.configuration.usageProfile)
+        if (!profile) {
+            return ""
+        }
+        if (Usage.barFor(profile, barIdFor(profile.id)) !== null) {
+            return ""
+        }
+        var why = Usage.stateMessage(profile)
+        return why === "" ? "" : i18n("Plan usage for %1: %2",
+                                      Usage.displayName(profile), why)
+    }
+
+    toolTipSubText: {
+        if (failure !== "") {
+            return failure
+        }
+        var lines = Sessions.tooltipLines(shownCounts)
+        return usageBlocked === "" ? lines : lines + "\n" + usageBlocked
+    }
     toolTipTextFormat: Text.PlainText
 
     Plasma5Support.DataSource {
