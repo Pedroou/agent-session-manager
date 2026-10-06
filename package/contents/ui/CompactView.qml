@@ -43,12 +43,15 @@ MouseArea {
         var id = Usage.selectedId(widget.usage, plasmoid.configuration.usageProfile)
         return Usage.panelBar(widget.usage, id, widget.barIdFor(id))
     }
-    // Below three bars the strip is barely wider than it is tall and reads as a
-    // smudge rather than a measurement, so it waits until there is width to fill.
+    // Below three bars' worth of width the strip is barely wider than it is tall
+    // and reads as a smudge rather than a measurement. That is a question about
+    // the strip's own width, though, not about how many sessions are open - so
+    // it keeps that width for itself rather than making the plan limit vanish
+    // whenever fewer than three sessions happen to be running.
     readonly property int usageMinBars: 3
+    readonly property real usageMinWidth: usageMinBars * thickness + (usageMinBars - 1) * gap
     readonly property bool usageVisible: plasmoid.configuration.panelUsage
         && usageBar !== null
-        && railed.length >= usageMinBars
         && Usage.pastThreshold(usageBar, plasmoid.configuration.panelUsageThreshold)
     readonly property real stripThickness: Math.max(2, Math.round(thickness * 0.85))
 
@@ -161,6 +164,11 @@ MouseArea {
                 id: strip
                 visible: compact.usageVisible
                 Layout.fillWidth: true
+                // Side by side in a horizontal panel, one or two rails would
+                // squeeze the strip down to a dot, so it claims three bars'
+                // width whatever the count. Sideways the rails stack instead and
+                // the strip already spans the full track.
+                implicitWidth: compact.sideways ? 0 : compact.usageMinWidth
                 Layout.preferredHeight: compact.stripThickness
                 implicitHeight: compact.stripThickness
 
