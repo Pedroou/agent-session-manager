@@ -1,6 +1,6 @@
 #!/usr/bin/env -S fish --no-config
-# Print one JSON document describing every Claude Code session running right now,
-# across both profiles.
+# Print one JSON document describing every agent session running right now:
+# Claude Code, across every configured profile, and OMP (oh-my-pi).
 #
 # Claude Code keeps a registry of its own live sessions at
 # <profile-dir>/sessions/<pid>.json, refreshed as the session changes state. The
@@ -16,16 +16,38 @@
 #   running  a shell command or script is executing inside a busy session
 #   error    an idle session whose last turn ended in an API error
 #
+# OMP keeps no registry at all, so its sessions are found the other way round:
+# the process first, then the transcript it is writing, whose tail says what the
+# session is doing (see the OMP section below).
+#
 # The widget polls this, so it stays cheap: record bodies and git metadata are
 # read with fish builtins, and the whole batch is handed to a single jq. Only
 # idle sessions pay for a transcript read, and only busy ones for a /proc walk.
+# Each OMP session costs one `tail`, and all of them share one more jq.
 #
-# Environment overrides (used by the test suite):
+# Environment:
 #   CLAUDE_PROFILES          JSON array of {name, dir} to read, in order
+#   CLAUDE_SESSIONS_OMP      0 to leave OMP out entirely: no /proc scan, nothing
+#                            read, nothing run. Anything else, or unset, reads it.
 #   CLAUDE_SESSIONS_PROC     root to look for <pid>/... under, default /proc
 #   CLAUDE_SESSIONS_NO_ERROR set to skip the transcript scan entirely
 #
 # Exit status is 0 whenever a document was printed, including "nothing running".
+
+# Ceilings, inherited by every process this starts. A run takes about 10 MB and
+# a tenth of a CPU second, and still completes under a 128 MB address-space
+# limit; these sit far above that, so they never bind on a run that is working,
+# and stop one that is not - whatever it hit - long before the machine notices.
+# Only ever lowered: a tighter limit already in force is kept, and a limit that
+# cannot be set is simply not set.
+function __cs_cap -a flag value
+    set -l now (ulimit -S $flag)
+    if test "$now" = unlimited; or test "$now" -gt $value 2>/dev/null
+        ulimit -S $flag $value 2>/dev/null
+    end
+end
+__cs_cap -v 1048576 # 1 GiB of address space per process
+__cs_cap -t 30 # 30 seconds of CPU per process
 
 set -l proc_root /proc
 test -n "$CLAUDE_SESSIONS_PROC"; and set proc_root $CLAUDE_SESSIONS_PROC
@@ -211,6 +233,132 @@ function __cs_git -a dir
     echo $branch
 end
 
+# ─── OMP ────────────────────────────────────────────────────────────────────
+#
+# OMP writes no registry of live sessions, but every running session is a
+# process, and that process holds its transcript open for as long as it writes
+# to it. So the process table says which sessions are alive, its fd table says
+# which transcript each one is, and the tail of that transcript says what it is
+# doing - all three from files, like everything else here.
+
+# Every OMP session process. The compiled binary runs as `omp`; an install run
+# through bun or node shows that runtime's name with omp's script as the first
+# argument. OMP's own helper processes (`omp __omp_worker_…`) share the name,
+# and are dropped - none of them is a session.
+#
+# Every list below is globbed or read into a variable before it is used: an
+# unmatched glob in an argument list is an error in fish, and `string` or `path`
+# handed no arguments at all reads stdin instead - a hang, run from a terminal.
+#
+# And every read has a ceiling (`read -n`), so no file - a process's argv, a
+# breadcrumb, a transcript with no newline in it - can make this hold more than
+# a few kilobytes of it in memory.
+function __cs_omp_pids -a proc_root
+    set -l entries $proc_root/*
+    test (count $entries) -gt 0; or return
+    for pid in (string match -r '^[0-9]+$' -- (path basename $entries))
+        # Checked first: a failed redirection is a warning fish prints wherever
+        # stderr points, and a process can exit between the glob and the read.
+        test -r $proc_root/$pid/comm; or continue
+        set -l comm
+        read -n 64 comm <$proc_root/$pid/comm; or continue
+        contains -- "$comm" omp bun node; or continue
+        # The first three arguments are all that is looked at: the helper's
+        # marker comes first for the binary, second through bun or node.
+        set -l a0
+        set -l a1
+        set -l a2
+        test -r $proc_root/$pid/cmdline; or continue
+        begin
+            read -z -n 4096 a0
+            read -z -n 4096 a1
+            read -z -n 4096 a2
+        end <$proc_root/$pid/cmdline
+        test -n "$a0"; or continue
+        string match -q -- '__omp_*' "$a1" "$a2"; and continue
+        if test "$comm" != omp
+            string match -qr -- '(^|/)omp$|/pi-coding-agent/' "$a1"; or continue
+        end
+        echo $pid
+    end
+end
+
+# Only a file named the way OMP names a session's transcript is ever read as
+# one: <timestamp>_<session-id>.jsonl, and a regular file at that.
+function __cs_omp_is_transcript -a path
+    string match -qr -- '/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9-]+Z_[^/]+\.jsonl$' "$path"
+end
+
+# The transcript an OMP process belongs to, printed as a path - which may not
+# exist yet, for a session nobody has typed into.
+#
+# First choice is the one it has open. A session's transcript is named
+# <timestamp>_<session-id>.jsonl; a subagent's, which the same process also
+# holds open, is named after the agent - so the name alone tells them apart.
+#
+# A session OMP has not written yet holds nothing open, and nor does one that
+# was resumed and has not written since. For those there is the breadcrumb OMP
+# leaves per terminal, which is how its own `--continue` knows what was last
+# open there: <agent-dir>/terminal-sessions/<tty>, holding the cwd and the
+# transcript path. It is trusted only when its cwd is the process's own, since a
+# terminal outlives the sessions run in it.
+function __cs_omp_transcript -a proc_root pid cwd
+    set -l best ""
+    set -l best_mtime 0
+    set -l fds $proc_root/$pid/fd/*
+    set -l open
+    test (count $fds) -gt 0; and set open (path resolve $fds)
+    for f in $open
+        __cs_omp_is_transcript $f; and test -f $f; or continue
+        set -l m (path mtime -- $f)
+        if test -z "$best"; or test "$m" -gt $best_mtime
+            set best $f
+            set best_mtime $m
+        end
+    end
+
+    if test -z "$best"
+        # OMP names a terminal after its tty, /dev/pts/4 becoming pts-4. `path
+        # resolve` cannot be used here: it gives up on a link it cannot follow.
+        set -l tty (readlink $proc_root/$pid/fd/0 2>/dev/null)
+        string match -qr '^/dev/.' -- "$tty"; or return 1
+        set -l terminal (string replace -a / - -- (string sub -s 6 -- $tty))
+        for crumb in $HOME/.omp/agent/terminal-sessions/$terminal \
+                $HOME/.omp/profiles/*/agent/terminal-sessions/$terminal
+            test -f $crumb; or continue
+            set -l crumb_cwd
+            set -l crumb_file
+            begin
+                read -n 4096 crumb_cwd
+                read -n 4096 crumb_file
+            end <$crumb
+            test "$crumb_cwd" = "$cwd"; or continue
+            __cs_omp_is_transcript $crumb_file; or continue
+            set -l m (path mtime -- $crumb)
+            if test -z "$best"; or test "$m" -gt $best_mtime
+                set best $crumb_file
+                set best_mtime $m
+            end
+        end
+    end
+
+    test -n "$best"; or return 1
+    echo $best
+end
+
+# When a process started, in clock ticks since boot: field 22 of its stat, which
+# is also what Claude Code records as `procStart`. Field 2 is the executable
+# name in parentheses and may hold spaces of its own, so fields are counted from
+# after the last ')'. Prints nothing when the process is gone.
+function __cs_start_ticks -a proc_root pid
+    test -r $proc_root/$pid/stat; or return 1
+    set -l line
+    read -n 4096 line <$proc_root/$pid/stat
+    set -l fields (string split -n ' ' -- (string replace -r '^.*\)' '' -- "$line"))
+    string match -qr '^[0-9]+$' -- "$fields[20]"; or return 1
+    echo $fields[20]
+end
+
 set -l bodies
 set -l extras # index-aligned with $bodies: the fields worked out here
 set -l present
@@ -270,6 +418,97 @@ for i in (seq (count $profile_dirs))
     end
 end
 
+# OMP sessions join the same two lists, so they sort and count with the rest.
+# Each transcript's tail becomes a registry-shaped record - `status` one of
+# busy/idle/waiting/running/error, the reason in `detail` - so from here on a
+# session is a session, whichever agent runs it.
+#
+# Switched off, none of this runs: not the /proc scan, not a read, not a
+# process. Switched on, its cost has a ceiling whatever the machine is doing:
+# at most 32 sessions, and per session one `tail` of at most 128 KiB plus a
+# first line of at most 4 KiB - so the one jq they share never sees more than
+# about 4 MiB. A command that cannot start, for want of memory or processes or
+# anything else, costs the OMP rows of that one refresh and nothing more:
+# nothing is retried, nothing is written, and the Claude Code rows still print.
+set -l omp_pids
+test "$CLAUDE_SESSIONS_OMP" != 0; and set omp_pids (__cs_omp_pids $proc_root)
+set -l omp_max 32
+test (count $omp_pids) -gt $omp_max; and set omp_pids $omp_pids[1..$omp_max]
+if test (count $omp_pids) -gt 0
+    set -l btime
+    test -r $proc_root/stat; and set btime (string match -gr '^btime ([0-9]+)$' <$proc_root/stat)
+    set -l omp_program (status dirname)/omp-sessions.jq
+
+    set -l omp_files
+    set -l omp_meta # seven per session, in the order the jq below reads them
+    set -l omp_extras
+    for pid in $omp_pids
+        # Gone since the scan: nothing to report, and nothing to end later.
+        set -l ticks (__cs_start_ticks $proc_root $pid); or continue
+        set -l cwd (path resolve $proc_root/$pid/cwd)
+        set -l file (__cs_omp_transcript $proc_root $pid "$cwd"); or continue
+        set -l session_id (string match -gr '_([^_/]+)\.jsonl$' -- $file)
+
+        # Transcripts live at <agent-dir>/sessions/<project>/<file>, unless
+        # --session-dir put them somewhere else - in which case the directory
+        # holding the file is all there is to say about where it came from.
+        set -l sessions_dir (path dirname (path dirname $file))
+        set -l agent_dir (path dirname $sessions_dir)
+        test (path basename $sessions_dir) = sessions; or set agent_dir (path dirname $file)
+
+        # The stock agent directory resumes with a plain `omp --resume`, and a
+        # named profile (`omp --profile <name>`) lives under ~/.omp/profiles.
+        set -l label OMP
+        set -l omp_profile ""
+        set -l is_default false
+        if test "$agent_dir" = "$HOME/.omp/agent"
+            set is_default true
+        else if set omp_profile (string match -gr \
+                '^'(string escape --style=regex -- $HOME)'/\.omp/profiles/([^/]+)/agent$' -- $agent_dir)
+            set label "OMP $omp_profile"
+        end
+
+        # Epoch milliseconds: /proc/stat has the boot time, and USER_HZ is 100
+        # on every architecture Linux exposes to userspace, so a tick is 10 ms.
+        set -l started 0
+        test -n "$btime"; and set started (math -s0 "($btime * 100 + $ticks) * 10")
+
+        set -l git_info (__cs_git "$cwd")
+
+        set -a omp_files $file
+        set -a omp_meta ":$pid" ":$session_id" ":$cwd" ":$started" ":$file" \
+            ":$omp_profile" ":$ticks"
+        set -a omp_extras ":$label" ":" ":" ":$git_info[1]" ":$git_info[2]" \
+            ":$agent_dir" ":$is_default"
+    end
+
+    # One stream for every session, read by omp-sessions.jq beside this script:
+    # a record separator opens each, then the transcript's first line - the
+    # title, kept in a fixed-width slot OMP rewrites in place - then its tail.
+    # A separator cannot occur inside JSON text, so it is never mistaken for a
+    # line of transcript.
+    set -l records
+    if test (count $omp_files) -gt 0
+        set records (
+            for f in $omp_files
+                printf '\x1e\n'
+                test -f $f; or continue
+                set -l first
+                read -n 4096 first <$f
+                printf '%s\n' $first
+                tail -c 131072 -- $f 2>/dev/null
+                echo
+            end | jq -ncR -f $omp_program --args $omp_meta 2>/dev/null)
+    end
+
+    # One record per session or none at all: the lists are paired by position,
+    # so a jq that fell over halfway must not shift every record after it.
+    if test (count $records) -eq (count $omp_files)
+        set -a bodies $records
+        set -a extras $omp_extras
+    end
+end
+
 # fish concatenates a command substitution with an adjacent literal, so this is a
 # millisecond stamp without relying on `date +%N`, which uutils coreutils - the
 # default on this distro - does not accept a width for.
@@ -317,6 +556,16 @@ printf '%s\n' $bodies | jq -n \
         | (($r.cwd // "") | split("/") | map(select(. != ""))) as $parts
         | {
             pid:             ($r.pid // 0),
+            # Which tool runs the session, and with it how the session is
+            # resumed: OMP records carry the transcript and named profile that
+            # its resume command needs; Claude Code needs neither.
+            agent:           ($r.agent // "claude"),
+            sessionFile:     ($r.sessionFile // ""),
+            ompProfile:      ($r.ompProfile // ""),
+            # When the process started, in clock ticks since boot. Ending a
+            # session checks it again first, so a pid that has since been
+            # handed to some other process is never signalled.
+            procStart:       (($r.procStart // "") | tostring),
             profile:         ($x.profile // "work"),
             profileDir:      ($x.profileDir // ""),
             profileDefault:  $x.profileDefault,

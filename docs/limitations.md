@@ -15,6 +15,21 @@
   it to, and never on its own - otherwise an account you removed from the list
   would come back by itself. A new one you create later is a search away, not
   automatic.
+- **OMP's approval prompts look like the tool running.** OMP marks a tool as
+  started before asking whether it may run, and the prompt itself is never
+  written down - so a `bash` call waiting for your approval reads as
+  **Running**, and any other tool waiting for it as **Working**. Only `ask`,
+  whose question is the tool, reads as **Waiting**.
+- **OMP has no Shell state.** Nothing it writes says the terminal has been
+  handed to a shell; a `!` command typed at its prompt is recorded only once it
+  has finished.
+- **OMP sessions that never touched a terminal are found late.** A session is
+  identified by the transcript it holds open, and OMP opens it only once the
+  first reply lands. An interactive session is found before that through the
+  breadcrumb OMP keeps per terminal - looked for under `~/.omp` only - but one
+  run headless, or over RPC, appears with its first reply.
+- **No plan usage for OMP.** The usage bar reads Claude Code's own login; OMP
+  keeps its credentials in its own database, which the widget does not open.
 
 None of these are oversights. Each is a place where the thing the widget wants to
 know is not observable from outside the process, and guessing would have been

@@ -262,6 +262,9 @@ Item {
             }
 
             PlasmaComponents3.ToolButton {
+                // Only offered when the session can be ended safely: a known
+                // pid above 1 with a known start time (see Sessions.endCommand).
+                visible: Sessions.endCommand(row.session) !== ""
                 icon.name: row.confirmingEnd ? "dialog-warning" : "window-close"
                 icon.width: Kirigami.Units.iconSizes.small
                 icon.height: Kirigami.Units.iconSizes.small
@@ -280,7 +283,7 @@ Item {
                                         : i18n("End this session")
                 onClicked: {
                     if (row.confirmingEnd) {
-                        row.widget.endSession(row.session.pid)
+                        row.widget.endSession(row.session)
                         row.confirmingEnd = false
                     } else {
                         row.confirmingEnd = true

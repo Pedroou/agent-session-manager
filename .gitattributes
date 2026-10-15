@@ -9,6 +9,8 @@ tools/** linguist-vendored
 # generic shell. They are fish, and they use fish builtins that no POSIX shell
 # has - which is the whole reason the dependency list names it.
 package/contents/scripts/* linguist-language=fish
+# The one that is not a collector, and does have an extension.
+package/contents/scripts/*.jq linguist-language=jq
 install.fish linguist-language=fish
 
 # Generated, and enormous next to the source.

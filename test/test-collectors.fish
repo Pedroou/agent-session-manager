@@ -114,6 +114,63 @@ function record_in -a dir pid sstatus name cwd
         }' >$dir/sessions/$pid.json
 end
 
+# An OMP session process, the way /proc shows the compiled binary: comm `omp`,
+# a working directory, and an fd table to hang transcripts and a tty on.
+function fake_omp -a pid starttime cwd
+    fake_proc $pid $starttime omp
+    echo omp >$CLAUDE_SESSIONS_PROC/$pid/comm
+    string join0 -- omp >$CLAUDE_SESSIONS_PROC/$pid/cmdline
+    mkdir -p $cwd $CLAUDE_SESSIONS_PROC/$pid/fd
+    ln -s $cwd $CLAUDE_SESSIONS_PROC/$pid/cwd
+end
+
+# Point one of an OMP process's fds at a file, as holding it open does.
+function omp_holds -a pid fd target
+    ln -s $target $CLAUDE_SESSIONS_PROC/$pid/fd/$fd
+end
+
+# An OMP transcript: the title slot, the session header, then the entries given.
+function omp_transcript -a file title
+    mkdir -p (dirname $file)
+    begin
+        jq -nc --arg t $title '{type: "title", v: 1, title: $t, source: "auto"}'
+        jq -nc '{type: "session", version: 3, id: "ignored", cwd: "/ignored"}'
+        printf '%s\n' $argv[3..]
+    end >$file
+end
+
+function omp_file -a id
+    echo $ROOT/.omp/agent/sessions/-proj/2026-10-15T17-07-38-372Z_$id.jsonl
+end
+
+function omp_prompt -a text
+    jq -nc --arg t $text '{type: "message", timestamp: "2026-10-15T17:00:00.000Z",
+                           message: {role: "user", content: [{type: "text", text: $t}]}}'
+end
+
+# An assistant turn ending with `stop_reason`; `calls` is a JSON array of
+# {id, name, arguments} for a turn that ended asking for tools.
+function omp_turn -a stop_reason calls error
+    test -n "$calls"; or set calls '[]'
+    jq -nc --arg s $stop_reason --argjson calls $calls --arg e "$error" '
+        {type: "message", timestamp: "2026-10-15T17:01:40.250Z",
+         message: ({role: "assistant", stopReason: $s,
+                    content: ([{type: "text", text: "ok"}] + ($calls | map(. + {type: "toolCall"})))}
+                   + (if $e == "" then {} else {errorMessage: $e} end))}'
+end
+
+function omp_started -a id name command
+    jq -nc --arg id $id --arg n $name --arg c "$command" '
+        {type: "custom", customType: "tool_execution_start",
+         data: ({toolCallId: $id, toolName: $n} + (if $c == "" then {} else {args: {command: $c}} end))}'
+end
+
+function omp_answered -a id name
+    jq -nc --arg id $id --arg n $name '
+        {type: "message", message: {role: "toolResult", toolCallId: $id, toolName: $n,
+                                    content: [{type: "text", text: "done"}]}}'
+end
+
 echo "═══ Task 1: nothing running ═══"
 setup
 set -l out (collect)
@@ -540,6 +597,178 @@ set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
 check "plan usage has nothing to report either" 0 ($USAGE | jq '.profiles | length')
 set -e CLAUDE_USAGE_FIXTURE
 set -e CLAUDE_PROFILES
+
+echo
+echo "═══ Task 31: OMP sessions are found from the process table ═══"
+setup
+echo "btime 1760000000" >$CLAUDE_SESSIONS_PROC/stat
+fake_omp 4310 12345 $ROOT/code/checkout
+omp_transcript (omp_file 01a1-live) (string join '' \UF072C ' FLOW: Fix checkout') (omp_prompt "go")
+omp_holds 4310 69 (omp_file 01a1-live)
+# The same process holds its subagents' transcripts open too, named for the agent.
+omp_transcript $ROOT/.omp/agent/sessions/-proj/2026-10-15T17-07-38-372Z_01a1-live/0-Scout.jsonl sub
+omp_holds 4310 70 $ROOT/.omp/agent/sessions/-proj/2026-10-15T17-07-38-372Z_01a1-live/0-Scout.jsonl
+# One of OMP's helper processes, which carries the same name.
+fake_omp 4311 12346 $ROOT/code/checkout
+string join0 -- /usr/bin/omp __omp_worker_js_eval_process >$CLAUDE_SESSIONS_PROC/4311/cmdline
+omp_holds 4311 5 (omp_file 01a1-live)
+# OMP installed as a script and run by bun.
+fake_omp 4312 12347 $ROOT/code/other
+echo bun >$CLAUDE_SESSIONS_PROC/4312/comm
+string join0 -- bun $ROOT/.bun/bin/omp >$CLAUDE_SESSIONS_PROC/4312/cmdline
+omp_transcript (omp_file 01a1-bun) "" (omp_turn stop)
+omp_holds 4312 9 (omp_file 01a1-bun)
+# Any other bun program is not OMP.
+fake_omp 4313 12348 $ROOT/code/other
+echo bun >$CLAUDE_SESSIONS_PROC/4313/comm
+string join0 -- bun run dev >$CLAUDE_SESSIONS_PROC/4313/cmdline
+omp_holds 4313 9 (omp_file 01a1-bun)
+set out (collect)
+check "the session and the bun-run one, and no helper or stranger" "4310 4312" \
+    (echo $out | jq -r '[.sessions[] | select(.agent == "omp") | .pid] | sort | join(" ")')
+check "the session id comes from the transcript it holds open" 01a1-live \
+    (echo $out | jq -r '.sessions[] | select(.pid==4310) | .sessionId')
+check "named by its title, without the icon a panel font cannot draw" "FLOW: Fix checkout" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4310) | .name')
+check "an untitled one is named for its directory" other \
+    (echo $out | jq -r '.sessions[] | select(.pid==4312) | .name')
+check "the directory is the process's own" $ROOT/code/checkout \
+    (echo $out | jq -r '.sessions[] | select(.pid==4310) | .cwd')
+check "the account is OMP, from its stock agent directory" "OMP $ROOT/.omp/agent true" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4310) | "\(.profile) \(.profileDir) \(.profileDefault)"')
+check "the transcript is carried, for the resume command" (omp_file 01a1-live) \
+    (echo $out | jq -r '.sessions[] | select(.pid==4310) | .sessionFile')
+# Boot time plus 12345 ticks of 10 ms.
+check "uptime starts when the process did" 1760000123450 \
+    (echo $out | jq -r '.sessions[] | select(.pid==4310) | .startedAt')
+# What ending it checks first: the start time, in ticks, as /proc has it.
+check "and its start is carried for the end button to check" 12345 \
+    (echo $out | jq -r '.sessions[] | select(.pid==4310) | .procStart')
+
+echo
+echo "═══ Task 32: an OMP transcript says what its session is doing ═══"
+setup
+set -l bash_call '[{"id": "t1", "name": "bash", "arguments": {"command": "npm test"}}]'
+set -l ask_call '[{"id": "t2", "name": "ask", "arguments": {"questions": [{"id": "db", "question": "Which  database?"}]}}]'
+set -l read_call '[{"id": "t3", "name": "read", "arguments": {"path": "a.txt"}}]'
+set -l bookkeeping '{"type": "model_usage", "purpose": "title"}' '{"type": "title_change", "title": "x"}'
+set -l cases \
+    4320 working (omp_prompt "go") \
+    4321 running (omp_turn toolUse $bash_call) (omp_started t1 bash "npm   test") \
+    4322 waiting (omp_turn toolUse $ask_call) (omp_started t2 ask) \
+    4323 working (omp_turn toolUse $read_call) (omp_started t3 read) \
+    4324 working (omp_turn toolUse $bash_call) (omp_started t1 bash "npm test") (omp_answered t1 bash) \
+    4325 done (omp_turn stop) $bookkeeping \
+    4326 done (omp_prompt "go") (omp_turn aborted) \
+    4327 error (omp_turn error '' "429 rate limited · retry in 30s") \
+    4328 done (omp_turn stop) '{"type": "reset_boundary"}' \
+    4329 done
+set -l pids
+set -l wants
+set -l i 1
+while test $i -le (count $cases)
+    set -l pid $cases[$i]
+    set -a pids $pid
+    set -a wants $cases[(math $i + 1)]
+    set -l entries
+    set i (math $i + 2)
+    while test $i -le (count $cases); and not string match -qr '^43[0-9]{2}$' -- $cases[$i]
+        set -a entries $cases[$i]
+        set i (math $i + 1)
+    end
+    fake_omp $pid {$pid}00 $ROOT/code/s$pid
+    omp_transcript (omp_file id-$pid) "" $entries
+    omp_holds $pid 7 (omp_file id-$pid)
+end
+set out (collect)
+check "prompt, bash, ask, other tool, answered, stop, interrupt, failure, /clear, empty" \
+    (string join ' ' $wants) \
+    (for pid in $pids; echo $out | jq -r ".sessions[] | select(.pid==$pid) | .state"; end | string join ' ')
+check "a running command is shown, on one line" "npm test" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4321) | .detail')
+check "a question is shown" "Which database?" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4322) | .detail')
+check "and so is the error" "429 rate limited · retry in 30s" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4327) | .detail')
+check "OMP sessions sort and count with the rest" 10 (echo $out | jq '.counts.total')
+
+echo
+echo "═══ Task 33: an OMP session with nothing open is found through its terminal ═══"
+setup
+mkdir -p $ROOT/.omp/agent/terminal-sessions
+# Resumed, and has not written since: no fd, but its terminal's breadcrumb.
+fake_omp 4330 433000 $ROOT/code/resumed
+ln -s /dev/pts/7 $CLAUDE_SESSIONS_PROC/4330/fd/0
+omp_transcript (omp_file 01a1-resumed) "Resumed one" (omp_turn stop)
+printf '%s\n' $ROOT/code/resumed (omp_file 01a1-resumed) "cwdstat 1 2" >$ROOT/.omp/agent/terminal-sessions/pts-7
+# A breadcrumb left by an earlier session in another directory says nothing
+# about the one running in that terminal now.
+fake_omp 4331 433100 $ROOT/code/elsewhere
+ln -s /dev/pts/8 $CLAUDE_SESSIONS_PROC/4331/fd/0
+printf '%s\n' $ROOT/code/before (omp_file 01a1-before) >$ROOT/.omp/agent/terminal-sessions/pts-8
+set out (collect)
+check "the breadcrumb names the session" "01a1-resumed Resumed one" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4330) | "\(.sessionId) \(.name)"')
+check "a breadcrumb for another directory is not trusted" "" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4331) | .pid')
+
+echo
+echo "═══ Task 34: a named OMP profile is its own account ═══"
+setup
+set -l side $ROOT/.omp/profiles/side/agent/sessions/-proj/2026-10-15T17-07-38-372Z_01a1-side.jsonl
+fake_omp 4340 434000 $ROOT/code/side
+omp_transcript $side "" (omp_turn stop)
+omp_holds 4340 7 $side
+set out (collect)
+check "named for the profile, and not the stock directory" "OMP side side false" \
+    (echo $out | jq -r '.sessions[0] | "\(.profile) \(.ompProfile) \(.profileDefault)"')
+check "its agent directory is the account's" $ROOT/.omp/profiles/side/agent \
+    (echo $out | jq -r '.sessions[0].profileDir')
+echo
+echo "═══ Task 35: OMP switched off is OMP not looked at ═══"
+setup
+record work 4350 busy claude-one /home/u/a
+fake_proc 4350 435000
+fake_omp 4351 435100 $ROOT/code/omp-one
+omp_transcript (omp_file 01a1-off) "" (omp_turn stop)
+omp_holds 4351 7 (omp_file 01a1-off)
+set -gx CLAUDE_SESSIONS_OMP 0
+set out (collect)
+set -e CLAUDE_SESSIONS_OMP
+check "no OMP session is reported" "4350" (echo $out | jq -r '[.sessions[].pid] | join(" ")')
+set out (collect)
+check "and on again, it is" "4350 4351" (echo $out | jq -r '[.sessions[].pid] | sort | join(" ")')
+
+echo
+echo "═══ Task 36: what OMP costs has a ceiling ═══"
+setup
+for n in (seq 4360 4393)
+    fake_omp $n {$n}00 $ROOT/code/many
+    omp_transcript (omp_file id-$n) "" (omp_turn stop)
+    omp_holds $n 7 (omp_file id-$n)
+end
+set out (collect)
+check "34 sessions running, 32 read" 32 (echo $out | jq '[.sessions[] | select(.agent == "omp")] | length')
+
+setup
+# A transcript that is one 3 MB line: only its first 4 KiB and its last
+# 128 KiB are ever read, so it costs what any other does.
+fake_omp 4394 439400 $ROOT/code/huge
+mkdir -p (dirname (omp_file 01a1-huge))
+string repeat -n 3000000 x >(omp_file 01a1-huge)
+omp_holds 4394 7 (omp_file 01a1-huge)
+# A breadcrumb naming something that is not a transcript is not followed.
+mkdir -p $ROOT/.omp/agent/terminal-sessions
+fake_omp 4395 439500 $ROOT/code/odd
+ln -s /dev/pts/9 $CLAUDE_SESSIONS_PROC/4395/fd/0
+echo "not a transcript" >$ROOT/notes.txt
+printf '%s\n' $ROOT/code/odd $ROOT/notes.txt >$ROOT/.omp/agent/terminal-sessions/pts-9
+set out (collect)
+check "a transcript with no newline is still one session" "huge done" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4394) | "\(.name) \(.state)"')
+check "a breadcrumb pointing elsewhere reads nothing" "" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4395) | .pid')
+
 
 echo
 echo "═══ Tripwire: the real session registry was untouched ═══"

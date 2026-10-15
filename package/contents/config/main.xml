@@ -160,6 +160,12 @@
       search on its own.</label>
       <default>~</default>
     </entry>
+    <!-- Whether OMP sessions are looked for at all. Off skips the /proc scan
+         that finding them takes, not just their rows. -->
+    <entry name="showOmp" type="Bool">
+      <label>List OMP sessions alongside Claude Code ones.</label>
+      <default>true</default>
+    </entry>
 
     <!-- Runtime state the popup owns, kept here so it survives a restart. -->
     <entry name="censorNames" type="Bool">

@@ -76,8 +76,8 @@ def main(home, scenario, frame_ms, panel_percent=93):
          "    function refreshUsage(force) {\n"
          "        return // rig: the stage supplies usage directly\n"),
         # The fabricated pids are real pids on this machine. Never signal them.
-        ("        actions.connectSource(\"kill -TERM \" + parseInt(pid, 10))",
-         "        console.log(\"RIG endSession \" + pid) // rig: signals nothing"),
+        ("            actions.connectSource(command)",
+         "            console.log(\"RIG endSession \" + command) // rig: signals nothing"),
         ("        running: plasmoid.configuration.showUsage || plasmoid.configuration.panelUsage\n"
          "        repeat: true",
          "        running: false\n"

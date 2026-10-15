@@ -6,7 +6,7 @@
 
 ## Goal
 
-You run several Claude Code sessions at once, in different terminals and
+You run several Claude Code or OMP sessions at once, in different terminals and
 different projects. One of them is blocked on a permission prompt while you are
 reading another. The widget answers one question from the panel, without you
 alt-tabbing through terminals: **is any session waiting on me?** Opening it
@@ -123,6 +123,75 @@ itself excluded, because the stock profile keeps its `.claude.json` beside
 and "is this one?", which is how a path typed by hand gets checked before it
 joins the list.
 
+### OMP
+
+[OMP](https://github.com/can1357/oh-my-pi) publishes no registry, so its
+sessions are found from the other end - and every step is still a file read.
+
+**Which processes.** Every `/proc/<pid>` whose `comm` is `omp`, or `bun`/`node`
+running a script called `omp`. OMP's helpers (`omp __omp_worker_js_eval_process`
+and friends) share the name and are skipped by their argument. A process is
+alive by construction, so there is no start time to compare.
+
+**Which session.** OMP keeps the session's journal open for as long as it
+writes to it, so `/proc/<pid>/fd` names the transcript:
+`<agent-dir>/sessions/<project>/<timestamp>_<session-id>.jsonl`. The same
+process also holds its subagents' transcripts open, but those are named after
+the agent, so the `<timestamp>_<id>` shape picks the session out. Before its
+first reply a session has nothing open - OMP creates the file lazily - and a
+resumed one has nothing open until it next writes. Both are found through the
+breadcrumb OMP writes per terminal for its own `--continue`:
+`<agent-dir>/terminal-sessions/pts-4` holds the cwd and the transcript path,
+and is trusted only when that cwd is the process's own.
+
+**Which state.** The transcript's tail, read in one jq for every OMP session
+(`scripts/omp-sessions.jq`). Bookkeeping entries - usage, titles, model changes -
+are skipped, because they land after a turn has ended. Of what remains, the last
+entry decides:
+
+| Last entry                                         | Shown as    |
+|----------------------------------------------------|-------------|
+| assistant, `stopReason: error`                     | **Error**, with `errorMessage` |
+| assistant, `stop` / `length` / `aborted`, or `/clear` | **Done** |
+| tool call started, no result: `ask`                | **Waiting**, with the question |
+| tool call started, no result: `bash` or `eval`     | **Running**, with the command |
+| any other tool outstanding, a tool result, a prompt | **Working** |
+
+Unlike Claude Code's transcript this one is live: `tool_execution_start` is
+appended the moment a tool begins, which is what makes Running and Waiting
+readable from it at all. The name is the session's title, kept in a fixed-width
+slot on the file's first line that OMP rewrites in place, minus the private-use
+icon OMP puts in front of it. Uptime is the process's own start, from
+`/proc/<pid>/stat` and the boot time in `/proc/stat`.
+
+**Which account.** The transcript's agent directory. `~/.omp/agent` is the
+stock one; `~/.omp/profiles/<name>/agent` is the named profile `<name>`, shown as
+"OMP <name>" and resumed with `omp --profile <name> --resume <id>`. Anything else
+is passed back through `PI_CODING_AGENT_DIR`, and a transcript kept outside
+every agent directory (`--session-dir`) resumes by its path.
+
+**Off, and the ceilings when on.** The Accounts page's **Show OMP sessions**
+(`showOmp`, default on) sends `CLAUDE_SESSIONS_OMP=0` to the collector, which
+then skips the whole OMP section - no `/proc` scan, no reads, no processes. On,
+what it can cost is bounded whatever the machine is doing:
+
+| What                       | Ceiling                                          |
+|----------------------------|--------------------------------------------------|
+| Sessions read              | 32; more are left out                            |
+| Per file read              | `read -n`: 64 bytes of `comm`, 4 KiB per argument, breadcrumb line or transcript first line |
+| Per transcript tail        | 128 KiB, and only from a regular file named `<timestamp>_<id>.jsonl` |
+| Processes started          | one `tail` per session, one `readlink` per session with nothing open, one jq for all |
+| Per collector process      | 1 GiB address space, 30 CPU-seconds (`ulimit`, only ever lowered) |
+| Per collector run          | 20 s, then SIGTERM; SIGKILL 2 s later (`timeout`, from `main.qml`) |
+| Runs at once               | one: the DataSource does not restart a source that is still running |
+
+Failure costs the OMP rows of one refresh, never more. A command that cannot
+start - out of memory, out of processes, missing - leaves the jq short of a
+record per session, and the collector drops all of OMP for that run rather
+than misalign the list; nothing is retried and nothing is ever written. A run
+takes about 10 MB and a tenth of a CPU second, and still completes under a
+128 MB address-space limit, so none of the ceilings binds on a run that works.
+
 ### Plan usage
 
 The percentages behind Claude Code's own `/usage` come from one authenticated
@@ -161,6 +230,7 @@ package/
   metadata.json
   contents/
     scripts/claude-sessions      # fish: registry + /proc + transcripts → JSON
+    scripts/omp-sessions.jq      # OMP transcript tails → registry-shaped records
     scripts/claude-usage         # fish: credentials + usage API → JSON
     code/sessions.js             # pure display logic, no Qt
     code/usage.js                # pure usage logic, no Qt
@@ -186,16 +256,18 @@ docs/design.md                   # this file
 
 ### The isolation boundary
 
-Everything with a decision in it sits in one of four testable units; the QML
+Everything with a decision in it sits in one of five testable units; the QML
 binds and lays out.
 
 **`scripts/claude-sessions`** owns the registry: which directories to read,
 which records are live, how a status maps to a state, the two states that are
 worked out rather than read, the git repository and branch behind each session,
-and what order they come in. It prints one document and nothing else, which is
-also how it is tested - `test/test-collectors.fish` builds a throwaway `$HOME`, a
-throwaway `/proc` (`CLAUDE_SESSIONS_PROC`) and throwaway transcripts, and runs
-the real script against them.
+and what order they come in. It also finds OMP's sessions, and hands their
+transcripts to **`scripts/omp-sessions.jq`**, which owns what an OMP transcript
+means. It prints one document and nothing else, which is also how it is tested -
+`test/test-collectors.fish` builds a throwaway `$HOME`, a throwaway `/proc`
+(`CLAUDE_SESSIONS_PROC`) and throwaway transcripts, and runs the real script
+against them.
 
 **`scripts/claude-usage`** owns the credentials and the API call, with
 `CLAUDE_USAGE_FIXTURE` standing in for the network under test.
@@ -208,7 +280,9 @@ import, loaded by node in `test/`.
 
 Costs, measured: the session collector is two subprocesses and ~75 ms; it reads
 `/proc` and record bodies with fish builtins rather than forked `cat`s, which is
-what took it there from ~520 ms.
+what took it there from ~520 ms. Looking for OMP adds a read of every process's
+`comm` (~15 ms over 600 processes), and each OMP session found adds one `tail`,
+with one jq shared between them: three sessions took a run from 20 ms to 90 ms.
 
 ### Data flow
 
@@ -316,11 +390,19 @@ and the transcript survives - which is what the right-click resume command is
 for. Doing this properly would mean speaking the peer protocol on
 `messagingSocketPath`, which is undocumented and not worth the risk here.
 
+Ending checks the target first. `kill(2)` reads pid 0 as the caller's own
+process group and a negative pid as a whole group, so `Sessions.endCommand`
+refuses anything but digits above 1; and a pid can be reused by the time the
+button is pressed, so the command re-reads the start time from
+`/proc/<pid>/stat` and signals only if it still equals the one the collector
+reported (`procStart`, which both agents now carry). A session without a known
+start time has no end button.
+
 ## Error and empty states
 
 | Condition                          | Panel                     | Popup                                                    |
 |------------------------------------|---------------------------|-----------------------------------------------------------|
-| Nothing running                    | faint tick, no number     | "No sessions running" / "Open a terminal and run claude to start one." |
+| Nothing running                    | faint tick, no number     | "No sessions running" / "Open a terminal and run claude or omp to start one." |
 | Before the first result            | faint tick                | nothing - an empty list would be a guess, not an answer   |
 | Collector failed / unparseable     | tick in the error colour  | "Can't read the session list" + stderr                    |
 | A torn or malformed record         | unaffected                | that one record is skipped, the rest still listed         |
@@ -397,6 +479,10 @@ All of it resets from one button, at the foot of the General page.
   interpretation lives in one fish script with its own test suite.
 - **So is the usage endpoint**, and so is `isApiErrorMessage`. A change to
   either degrades one panel of the widget, not the widget.
+- **So is OMP's transcript, in part.** Its layout is written up in OMP's own
+  documentation, but `tool_execution_start` and the title slot are core
+  bookkeeping rather than an interface. A change there costs Running, Waiting or
+  the name - never the session - and all of it is one jq file under test.
 - **`/proc` is Linux-only.** So is a Plasma panel, so this costs nothing here.
 - **Plasma caches applet QML.** After an upgrade the shell has to be restarted
   before the new code loads; `install.fish` says so rather than doing it.

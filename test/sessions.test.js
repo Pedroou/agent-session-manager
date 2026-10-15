@@ -241,6 +241,90 @@ test("a session from a second account carries that account's directory", () => {
                  + "CLAUDE_CONFIG_DIR='/home/u/my accounts/side' claude --resume abc-123")
 })
 
+function ompSession(over) {
+    return session(Object.assign({
+        agent: "omp",
+        sessionId: "01a14088-a104",
+        profileDir: "/home/u/.omp/agent",
+        profileDefault: true,
+        ompProfile: "",
+        sessionFile: "/home/u/.omp/agent/sessions/-code-checkout-flow/2026-10-15T17-07-38-372Z_01a14088-a104.jsonl"
+    }, over || {}))
+}
+
+// `omp --resume <id>` looks the id up in the agent directory it runs with, so the
+// command has to start omp with the same one: nothing for the stock directory,
+// --profile for a named profile, $PI_CODING_AGENT_DIR for anything else.
+test("an OMP session resumes with omp, in the agent directory it came from", () => {
+    assert.equal(Sessions.resumeCommand(ompSession()),
+                 "cd /home/u/code/checkout-flow && omp --resume 01a14088-a104")
+    assert.equal(Sessions.resumeCommand(ompSession({
+                     profileDir: "/home/u/.omp/profiles/side job/agent", profileDefault: false,
+                     ompProfile: "side job",
+                     sessionFile: "/home/u/.omp/profiles/side job/agent/sessions/-x/a_01a14088-a104.jsonl"})),
+                 "cd /home/u/code/checkout-flow && omp --profile 'side job' --resume 01a14088-a104")
+    assert.equal(Sessions.resumeCommand(ompSession({
+                     profileDir: "/srv/omp-agent", profileDefault: false,
+                     sessionFile: "/srv/omp-agent/sessions/-x/a_01a14088-a104.jsonl"})),
+                 "cd /home/u/code/checkout-flow && "
+                 + "PI_CODING_AGENT_DIR=/srv/omp-agent omp --resume 01a14088-a104")
+})
+
+// --session-dir keeps a transcript outside every agent directory, where no id
+// lookup reaches - but omp also resumes from a path.
+test("an OMP transcript kept outside the agent directory resumes by its path", () => {
+    assert.equal(Sessions.resumeCommand(ompSession({
+                     profileDir: "/home/u/my sessions", profileDefault: false,
+                     sessionFile: "/home/u/my sessions/2026-10-15T17-07-38-372Z_01a14088-a104.jsonl"})),
+                 "cd /home/u/code/checkout-flow && "
+                 + "omp --resume '/home/u/my sessions/2026-10-15T17-07-38-372Z_01a14088-a104.jsonl'")
+})
+
+// kill(2) reads 0 as "my own process group" and a negative pid as a whole
+// group, so anything but a plain pid above 1 must never become a command.
+test("ending is refused for any pid that is not a plain process id", () => {
+    for (const pid of [0, 1, -1, -4321, "12abc", "1 2", "", undefined, null, NaN, 1.5]) {
+        assert.equal(Sessions.endCommand({pid: pid, procStart: "400100"}), "", `pid ${pid}`)
+    }
+})
+
+test("ending is refused when the start time cannot be checked", () => {
+    for (const start of ["", undefined, null, "12; rm -rf ~", "-1", "4e5"]) {
+        assert.equal(Sessions.endCommand({pid: 4321, procStart: start}), "", `start ${start}`)
+    }
+})
+
+// Run for real, against a real process, through the same /bin/sh the widget's
+// executable engine uses - the only way to know the command does what it says.
+test("the end command signals the process it was given, and only while it is still that process", () => {
+    const {spawn, spawnSync} = require("node:child_process")
+    const fs = require("node:fs")
+    const child = spawn("sleep", ["30"])
+    try {
+        const stat = fs.readFileSync(`/proc/${child.pid}/stat`, "utf8")
+        const start = stat.slice(stat.lastIndexOf(") ") + 2).split(" ")[19]
+
+        spawnSync("/bin/sh", ["-c", Sessions.endCommand({pid: child.pid, procStart: "1" + start})])
+        assert.equal(child.exitCode, null)
+        assert.equal(child.signalCode, null)
+        assert.ok(fs.existsSync(`/proc/${child.pid}`), "a different start time leaves it running")
+
+        const ended = spawnSync("/bin/sh", ["-c", Sessions.endCommand({pid: child.pid, procStart: start})])
+        assert.equal(ended.status, 0)
+        const deadline = Date.now() + 2000
+        while (fs.existsSync(`/proc/${child.pid}/stat`)
+               && !fs.readFileSync(`/proc/${child.pid}/stat`, "utf8").includes(") Z ")
+               && Date.now() < deadline) {
+            spawnSync("sleep", ["0.05"])
+        }
+        const after = fs.existsSync(`/proc/${child.pid}/stat`)
+            ? fs.readFileSync(`/proc/${child.pid}/stat`, "utf8") : ""
+        assert.ok(after === "" || after.includes(") Z "), "the matching start time ends it")
+    } finally {
+        child.kill("SIGKILL")
+    }
+})
+
 test("a path with a space or a quote in it is still a safe command", () => {
     assert.equal(Sessions.shellQuote("/home/u/my code"), "'/home/u/my code'")
     assert.equal(Sessions.shellQuote("/home/u/it's"), "'/home/u/it'\\''s'")

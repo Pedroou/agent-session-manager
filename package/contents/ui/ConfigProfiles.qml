@@ -17,11 +17,14 @@ import "../code/sessions.js" as Sessions
 // Searching only ever happens because someone asked for it. An account removed
 // from this list has to stay removed across restarts, and it cannot if anything
 // re-runs the search on its own.
+//
+// OMP has no accounts to list, only the one switch at the foot of the page.
 KCM.SimpleKCM {
     id: page
 
     property string cfg_profiles: "[]"
     property alias cfg_profileSearchPath: searchPath.text
+    property alias cfg_showOmp: showOmp.checked
 
     // The list, parsed. Held rather than re-parsed on every read: the rows below
     // edit it, and re-parsing on each keystroke would throw away the text cursor
@@ -441,6 +444,34 @@ KCM.SimpleKCM {
                     }
                 }
             }
+        }
+
+        Kirigami.Separator {
+            Layout.fillWidth: true
+            Layout.topMargin: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: Kirigami.Units.largeSpacing
+        }
+
+        Kirigami.Heading {
+            level: 4
+            text: i18n("OMP")
+        }
+
+        // OMP has no accounts to list: its sessions are found from the running
+        // processes, named profiles included, so the only choice is whether to
+        // look at all.
+        QQC2.CheckBox {
+            id: showOmp
+            text: i18n("Show OMP sessions")
+        }
+
+        QQC2.Label {
+            Layout.fillWidth: true
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 26
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            color: Kirigami.Theme.disabledTextColor
+            text: i18n("Finds every running omp and reads the end of the transcript it has open. Off, none of that runs.")
         }
     }
 }

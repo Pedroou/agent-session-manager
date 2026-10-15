@@ -247,13 +247,59 @@ function detailRows(session, settings, nowMs, censored) {
 // $CLAUDE_CONFIG_DIR is how Claude Code itself is told - so this works whatever
 // the user called the account and wherever they put it. The stock directory is
 // the one value it must never be set to, which is what profileDefault marks.
+//
+// OMP sessions resume with `omp --resume <id>`, which finds the id anywhere in
+// the agent directory it runs with: the stock one plainly, a named profile with
+// `--profile`, and any other through $PI_CODING_AGENT_DIR. A transcript kept
+// outside every agent directory (`--session-dir`) can only be found by its path.
 function resumeCommand(session) {
+    var into = "cd " + shellQuote(session.cwd) + " && "
+    if (session.agent === "omp") {
+        var home = session.profileDir + "/sessions/"
+        if (String(session.sessionFile || "").indexOf(home) !== 0) {
+            return into + "omp --resume " + shellQuote(session.sessionFile)
+        }
+        if (session.ompProfile) {
+            return into + "omp --profile " + shellQuote(session.ompProfile)
+                   + " --resume " + session.sessionId
+        }
+        if (session.profileDefault === false) {
+            return into + "PI_CODING_AGENT_DIR=" + shellQuote(session.profileDir)
+                   + " omp --resume " + session.sessionId
+        }
+        return into + "omp --resume " + session.sessionId
+    }
     var prefix = ""
     if (session.profileDir && session.profileDefault === false) {
         prefix = "CLAUDE_CONFIG_DIR=" + shellQuote(session.profileDir) + " "
     }
-    return "cd " + shellQuote(session.cwd) + " && " + prefix
-           + "claude --resume " + session.sessionId
+    return into + prefix + "claude --resume " + session.sessionId
+}
+
+// The shell command that ends a session, or "" when it cannot be done safely.
+//
+// Ending sends SIGTERM to a pid, and a pid is the one thing here that can do
+// real damage when it is wrong. 0 means "my own process group" to kill(2), and
+// a negative number means a whole group, so only a plain integer above 1 ever
+// reaches the command. And by the time the button is pressed the session may
+// have exited and its pid been handed to something else, so the command reads
+// the process's start time from /proc at that moment and signals it only if it
+// is still the one the collector saw. A session whose start time is not known
+// cannot be checked, and so cannot be ended from here.
+//
+// Both values are digits by the time they are spliced in, so there is nothing
+// in them a shell could read as anything but a number.
+function endCommand(session) {
+    var pid = String(session && session.pid !== undefined ? session.pid : "")
+    var start = String(session && session.procStart !== undefined ? session.procStart : "")
+    if (!/^[0-9]+$/.test(pid) || parseInt(pid, 10) <= 1 || !/^[0-9]+$/.test(start)) {
+        return ""
+    }
+    // Field 22 of /proc/<pid>/stat is the start time; field 2 is the name in
+    // parentheses and may contain spaces, so everything up to the last ") " is
+    // dropped and it becomes field 20.
+    return "read -r l < /proc/" + pid + "/stat && set -- ${l##*) } && [ \"${20}\" = \""
+           + start + "\" ] && kill -TERM " + pid
 }
 
 function shellQuote(text) {
@@ -298,6 +344,7 @@ if (typeof module !== "undefined" && module.exports) {
         context: context,
         detailRows: detailRows,
         resumeCommand: resumeCommand,
+        endCommand: endCommand,
         shellQuote: shellQuote,
         detailsAsText: detailsAsText
     }

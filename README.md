@@ -24,22 +24,27 @@
 
 </div>
 
-Run several Claude Code sessions at once and the interesting question stops being
-*what is Claude doing* and becomes **which one is waiting on me**. This puts the
-answer in your panel: one bar per session, coloured by what that session is
-doing, so a glance is enough.
+Run several Claude Code or OMP sessions at once and the interesting question
+stops being *what is the agent doing* and becomes **which one is waiting on me**.
+This puts the answer in your panel: one bar per session, coloured by what that
+session is doing, so a glance is enough.
 
 ## Features
 
 - **Live status for every session** - waiting on you, stopped on an error,
   running a command, working, in a shell, or done.
-- **No setup.** It reads the registry Claude Code already writes. No hooks, no
+- **Claude Code and [OMP](https://github.com/can1357/oh-my-pi)**, side by side
+  in one list.
+- **No setup.** It reads what each tool already writes: Claude Code's session
+  registry, and the transcript every OMP session keeps open. No hooks, no
   wrappers, no config files to place.
 - **A popup with the details** - directory, git repository and branch, uptime,
   session id, pid. Click any value to copy it.
-- **Your plan usage**, per account, for whichever limit you care about.
+- **Your plan usage**, per Claude Code account, for whichever limit you care
+  about.
 - **Multiple account profiles.** Claude Code switches accounts with
-  `CLAUDE_CONFIG_DIR`, which takes any path.
+  `CLAUDE_CONFIG_DIR`, which takes any path; OMP's named profiles are picked up
+  on their own.
 - **Native Plasma theming**, with every status colour overridable.
 
 ## Reading the panel
@@ -101,7 +106,7 @@ Popup page.
 
 ## Install
 
-Requires **Plasma 6**, **fish 3.5+**, `jq`, `curl` and `kpackagetool6`.
+Requires **Plasma 6**, **fish 3.5+**, `jq`, `curl`, `timeout` and `kpackagetool6`.
 `install.fish` checks for all of them.
 
 ```fish
@@ -129,7 +134,8 @@ takes effect:
 - **Popup** - how many sessions it shows before scrolling, which limit plan
   usage shows by default, which rows an expanded session has, and where the
   branch goes.
-- **Accounts** - which config directories to watch.
+- **Accounts** - which config directories to watch, and whether to show OMP
+  sessions.
 - **Colours** - all six status colours.
 
 ### Accounts
@@ -184,20 +190,53 @@ Every account is read the same way, and an account is only ever a directory:
 command is that variable and nothing else - except for `~/.claude`, the one
 value it must never be set to.
 
-Everything with a decision in it lives in two fish collectors and two Qt-free
-JavaScript files, all four testable without a running Plasma shell:
+**OMP** keeps no registry, so its sessions are found the other way round.
+Every `omp` process in `/proc` is a session (bar its own `__omp_worker`
+helpers), and each holds its transcript open while it writes - so the process's
+fd table says which session it is, and the tail of that transcript says what it
+is doing:
+
+- a prompt or a tool result last means **Working**;
+- a `bash` or `eval` call that has started and has no result yet is
+  **Running**, with the command;
+- an `ask` call in the same position is **Waiting**, with the question;
+- a turn that ended in an error is **Error**, with the message; one that
+  finished, or was interrupted, is **Done**.
+
+OMP writes a marker the moment each tool starts, so unlike Claude Code's
+transcript this one is live. A session that has not written anything yet holds
+no transcript open; it is found through the breadcrumb OMP leaves for its
+terminal, the same file `omp --continue` reads. The resume command is
+`omp --resume <id>`, with `--profile` for a named profile.
+
+**Show OMP sessions**, on the Accounts page, switches all of this off: no
+process scan, no reads, nothing run. On, its cost has fixed ceilings: at most 32
+sessions, and of each transcript at most 4 KiB of its first line and 128 KiB of
+its end. If a command cannot start, for want of memory or anything else, that
+one refresh goes without its OMP rows; nothing is retried and nothing is
+written. Every run of the collector is also held to 1 GiB of address space and
+30 CPU-seconds per process, and stopped after 20 seconds, and the widget never
+starts a run while the same one is still going.
+
+Ending a session from the popup checks first that the process is still the one
+that was listed - its start time in `/proc` has to match - so a pid reused by
+something else since is never signalled.
+
+Everything with a decision in it lives in two fish collectors, the jq program
+that reads OMP transcripts, and two Qt-free JavaScript files - all testable
+without a running Plasma shell:
 
 ```fish
-fish --no-config test/test-collectors.fish   # 96 assertions
-node --test test/sessions.test.js            # 30
-node --test test/usage.test.js               # 21
+fish --no-config test/test-collectors.fish   # 119 assertions
+node --test test/sessions.test.js            # 35
+node --test test/usage.test.js               # 22
 ```
 
 The fish suite builds a throwaway `$HOME`, a throwaway `/proc` **and** throwaway
 transcripts, then runs the real collectors against them - so a recycled pid, a
-half-written record, an MCP child that is not a command, and a command starting
-with `--` that `jq` would otherwise eat as a flag are covered rather than
-assumed.
+half-written record, an MCP child that is not a command, a command starting
+with `--` that `jq` would otherwise eat as a flag, and an OMP helper process
+that is not a session are covered rather than assumed.
 
 [`docs/design.md`](docs/design.md) is the full write-up, and
 [`docs/limitations.md`](docs/limitations.md) is honest about what it cannot do.
@@ -208,8 +247,8 @@ assumed.
 limits using the login Claude Code already stores; the token goes to `curl`
 through stdin rather than argv, so it never appears in the process list, and it
 never reaches the widget's own code. Nothing else leaves the machine, nothing is
-written to your Claude Code config, and there is no server, no telemetry and
-nothing to sign up for.
+written to your Claude Code or OMP config, and there is no server, no telemetry
+and nothing to sign up for.
 
 **About that endpoint.** It is the one Claude Code's own `/usage` view uses, and
 it is undocumented. Anthropic's terms describe the OAuth login as being for

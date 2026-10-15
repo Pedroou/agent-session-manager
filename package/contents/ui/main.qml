@@ -349,10 +349,14 @@ PlasmoidItem {
 
     // SIGTERM is the graceful path: Claude Code registers a handler for it that
     // runs its own shutdown, so the session closes the way it would if you shut
-    // the terminal. The transcript is on disk either way, and `claude --resume`
-    // picks it back up - which is what right-clicking the row copies.
-    function endSession(pid) {
-        actions.connectSource("kill -TERM " + parseInt(pid, 10))
+    // the terminal, and OMP's teardown records the exit in the transcript before
+    // it goes. The transcript is on disk either way, and `--resume` picks it back
+    // up - which is what right-clicking the row copies.
+    function endSession(session) {
+        var command = Sessions.endCommand(session)
+        if (command !== "") {
+            actions.connectSource(command)
+        }
     }
 
     // QML has no clipboard of its own; a TextEdit does, and this is the usual way
@@ -415,8 +419,19 @@ PlasmoidItem {
         return "CLAUDE_PROFILES=" + shellQuote(JSON.stringify(slim)) + " "
     }
 
+    // OMP is looked for unless switched off; off, the collector skips it
+    // entirely rather than looking and throwing the answer away.
+    readonly property string ompEnv: plasmoid.configuration.showOmp ? "" : "CLAUDE_SESSIONS_OMP=0 "
+
+    // At most one collector runs at a time: the DataSource ignores a source it
+    // is already running, and every refresh asks for the same one. `timeout`
+    // is what makes "at a time" finite - a run that has not finished in 20
+    // seconds is stopped, and killed outright 2 seconds after that, so a run
+    // stuck on anything at all is replaced on the next refresh instead of
+    // blocking every refresh after it.
     function refresh() {
-        collector.connectSource(profilesEnv + shellQuote(collectorPath))
+        collector.connectSource(profilesEnv + ompEnv + "timeout -k 2 20 "
+                                + shellQuote(collectorPath))
     }
 
     // Poll faster while the popup is open - that is the only time a stale second

@@ -8,7 +8,8 @@ set -l here (dirname (realpath (status filename)))
 set -l package $here/package
 set -l id (jq -r '.KPlugin.Id' $package/metadata.json)
 
-for tool in kpackagetool6 jq fish
+# timeout bounds every collector run the widget starts (see refresh() in main.qml).
+for tool in kpackagetool6 jq fish timeout
     if not command -q $tool
         echo "✗ $tool is required but not on \$PATH."
         exit 1

@@ -81,7 +81,7 @@ MouseArea {
     acceptedButtons: Qt.LeftButton | Qt.MiddleButton
 
     Accessible.role: Accessible.Button
-    Accessible.name: i18n("Claude Code sessions")
+    Accessible.name: i18n("Agent sessions")
     Accessible.description: Sessions.tooltipLines(compact.counts).replace(/\n/g, ", ")
     Accessible.onPressAction: widget.expanded = !widget.expanded
 
