@@ -1,5 +1,6 @@
 #!/usr/bin/env -S fish --no-config
-# Print each profile's plan usage, as one JSON document.
+# Print each profile's plan usage, as one JSON document: every configured Claude
+# Code account, then every Anthropic login OMP has.
 #
 # The percentages behind Claude Code's own /usage view come from an authenticated
 # call to the endpoint below, with the bearer token Claude Code already stores per
@@ -10,9 +11,16 @@
 # every few minutes - plan limits move slowly - and a failure is reported as a
 # state rather than left to look like zero usage.
 #
-# Environment overrides (used by the test suite):
-#   CLAUDE_PROFILES       JSON array of {name, dir} to read, in order
-#   CLAUDE_USAGE_FIXTURE  read this file instead of calling the API
+# OMP is asked rather than read: `omp usage --json` reports its own logins,
+# refreshing their tokens as it goes, so the widget never touches OMP's
+# credentials at all (see the OMP section below).
+#
+# Environment:
+#   CLAUDE_PROFILES           JSON array of {name, dir} to read, in order
+#   CLAUDE_USAGE_OMP          0 to leave OMP out: omp is not run at all
+#   CLAUDE_USAGE_FIXTURE      read this file instead of calling the API (tests)
+#   CLAUDE_USAGE_OMP_BIN      the omp to run, instead of the one on $PATH (tests)
+#   CLAUDE_USAGE_SYSTEMD_RUN  the systemd-run to cap it with (tests)
 #
 # Exit status is 0 whenever a document was printed, including "nothing to show".
 
@@ -127,6 +135,97 @@ end
 set -l parts
 for i in (seq (count $profile_dirs))
     set -a parts (__cu_profile $profile_dirs[$i] $profile_names[$i] $profile_dirs[$i] $endpoint)
+end
+
+# ─── OMP ────────────────────────────────────────────────────────────────────
+#
+# OMP keeps its logins per agent directory: ~/.omp/agent, and one per named
+# profile under ~/.omp/profiles. Each is asked once, with `omp usage`, and each
+# Anthropic account in its answer becomes a row named the way that agent
+# directory's sessions are labelled - "OMP", or "OMP <profile>".
+#
+# omp is a 200 MB runtime, so it runs only inside a transient systemd scope
+# that the kernel holds to 512 MB of memory, no swap and 64 tasks - if it ever
+# wanted more, it alone is killed, inside its scope, and that account reads
+# "couldn't get usage" until the next try. It is also stopped after 15 seconds,
+# its output is read up to 1 MiB, and nothing is retried. Where there is no
+# systemd user manager to hold it to that, omp is not run at all: the row says
+# so instead of running something unbounded in the background.
+
+function __cu_omp_row -a group name state
+    jq -nc --arg id $group --arg name $name --arg state $state \
+        '{id: $id, group: $id, agent: "omp", name: $name, state: $state, bars: []}'
+end
+
+function __cu_omp_bin
+    # The panel's $PATH is the session's, which need not include where an
+    # installer put omp - so the usual places are tried too.
+    set -l candidates (command -s omp) $HOME/.local/bin/omp $HOME/.bun/bin/omp
+    test -n "$CLAUDE_USAGE_OMP_BIN"; and set candidates $CLAUDE_USAGE_OMP_BIN
+    for candidate in $candidates
+        if test -x $candidate
+            echo $candidate
+            return
+        end
+    end
+    return 1
+end
+
+if test "$CLAUDE_USAGE_OMP" != 0
+    # Agent directories that exist, with the --profile each one needs.
+    set -l groups
+    set -l labels
+    set -l profile_args
+    if test -d $HOME/.omp/agent
+        set -a groups omp:$HOME/.omp/agent
+        set -a labels OMP
+        set -a profile_args ""
+    end
+    set -l named $HOME/.omp/profiles/*/agent
+    for dir in $named
+        test -d $dir; or continue
+        set -l profile (path basename (path dirname $dir))
+        set -a groups omp:$dir
+        set -a labels "OMP $profile"
+        set -a profile_args $profile
+    end
+
+    set -l omp_bin (__cu_omp_bin)
+    set -l systemd_run systemd-run
+    test -n "$CLAUDE_USAGE_SYSTEMD_RUN"; and set systemd_run $CLAUDE_USAGE_SYSTEMD_RUN
+    set -l capped false
+    if command -q $systemd_run; and test -n "$XDG_RUNTIME_DIR" -a -S "$XDG_RUNTIME_DIR/systemd/private"
+        set capped true
+    end
+    # Absolute, because of the `cd /` below.
+    set -l program (path resolve (status dirname)/omp-usage.jq)
+
+    # No omp installed means nothing to ask, whatever ~/.omp holds.
+    if test (count $groups) -gt 0 -a -n "$omp_bin"
+        # Away from any project directory, so no project's .omp settings apply.
+        cd /
+        for i in (seq (count $groups))
+            if test $capped != true
+                set -a parts (__cu_omp_row $groups[$i] $labels[$i] uncapped)
+                continue
+            end
+            set -l profile_flag
+            test -n "$profile_args[$i]"; and set profile_flag --profile $profile_args[$i]
+            set -l report (timeout -k 2 15 $systemd_run --user --scope --quiet --collect \
+                    -p MemoryMax=512M -p MemorySwapMax=0 -p TasksMax=64 -- \
+                    $omp_bin $profile_flag usage --json --provider anthropic --no-extensions \
+                    </dev/null 2>/dev/null | head -c 1048576 | string collect)
+            set -l rows
+            if test -n "$report"
+                set rows (printf '%s' $report | jq -c --arg group $groups[$i] --arg name $labels[$i] \
+                    -f $program 2>/dev/null)
+                or set rows (__cu_omp_row $groups[$i] $labels[$i] error)
+            else
+                set rows (__cu_omp_row $groups[$i] $labels[$i] error)
+            end
+            set -a parts $rows
+        end
+    end
 end
 
 set -l now (date +%s)000

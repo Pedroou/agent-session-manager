@@ -65,20 +65,24 @@ function resetText(resetsAt, nowMs) {
                       : "resets in " + days + "d"
 }
 
-// What to say when a profile has no bars to draw. Each one names the fix.
+// What to say when a profile has no bars to draw. Each one names the fix - and
+// the fix depends on which tool holds the login.
 function stateMessage(profile) {
     if (!profile) {
         return "No such profile"
     }
+    var omp = profile.agent === "omp"
     switch (profile.state) {
     case "ok":
         return (profile.bars && profile.bars.length) ? "" : "This plan reports no limits"
     case "absent":
         return "Not signed in"
     case "expired":
-        return "Signed out - run claude to sign back in"
+        return omp ? "Signed out - log in again in omp" : "Signed out - run claude to sign back in"
+    case "uncapped":
+        return "Not checked - needs systemd to cap omp's memory"
     default:
-        return "Couldn't reach the usage API"
+        return omp ? "Couldn't get usage from omp" : "Couldn't reach the usage API"
     }
 }
 
@@ -105,8 +109,11 @@ function selectableProfiles(usage) {
 //
 // Accounts are identified by their config directory, and that list is the
 // user's to edit - so the one that was selected can simply stop existing. An id
-// that no longer matches falls back to the first account rather than leaving
-// the bar blank, which would read as "no usage" rather than "not that one".
+// that no longer matches falls back to the first account that has a reading,
+// then to the first at all, rather than leaving the bar blank, which would read
+// as "no usage" rather than "not that one". A reading first, because the first
+// account is often one nobody signs into any more - someone who moved to OMP
+// still has a signed-out ~/.claude at the top of the list.
 function selectedProfile(usage, wantedId) {
     var list = selectableProfiles(usage)
     if (!list.length) {
@@ -115,6 +122,11 @@ function selectedProfile(usage, wantedId) {
     for (var i = 0; i < list.length; i++) {
         if (list[i].id === wantedId) {
             return list[i]
+        }
+    }
+    for (var j = 0; j < list.length; j++) {
+        if (list[j].bars && list[j].bars.length) {
+            return list[j]
         }
     }
     return list[0]
@@ -157,6 +169,11 @@ function pastThreshold(bar, threshold) {
 // `error` is papered over - `absent` and `expired` are real answers about the
 // account, and hiding those behind a stale bar would be a lie rather than a
 // kindness.
+//
+// OMP's accounts come in groups, one per agent directory, and when omp itself
+// fails to answer there is no telling which accounts it would have listed: the
+// collector sends one error row whose id is the group's. That row stands in for
+// every account of the group that had a reading last time.
 function merge(previous, fresh) {
     if (!fresh) {
         return previous
@@ -167,22 +184,35 @@ function merge(previous, fresh) {
         was[older[i].id] = older[i]
     }
 
+    function keepable(before) {
+        return before && before.state === "ok" && before.bars && before.bars.length
+    }
+    function kept(before, name) {
+        return Object.assign({}, before, {
+            name: name || before.name,
+            stale: true,
+            since: before.stale ? before.since : (previous ? previous.fetchedAt : 0)
+        })
+    }
+
     var out = []
     var list = fresh.profiles || []
     for (var j = 0; j < list.length; j++) {
         var now = list[j]
-        var before = was[now.id]
-        var keepable = now.state === "error"
-            && before && before.state === "ok"
-            && before.bars && before.bars.length
-        if (keepable) {
-            out.push({
-                id: now.id,
-                state: "ok",
-                bars: before.bars,
-                stale: true,
-                since: before.stale ? before.since : (previous ? previous.fetchedAt : 0)
+        if (now.state === "error" && now.group && now.id === now.group) {
+            var members = older.filter(function (p) {
+                return p.group === now.group && p.id !== now.group && keepable(p)
             })
+            if (members.length) {
+                for (var k = 0; k < members.length; k++) {
+                    out.push(kept(members[k]))
+                }
+                continue
+            }
+        }
+        var before = was[now.id]
+        if (now.state === "error" && keepable(before)) {
+            out.push(kept(before, now.name))
         } else {
             out.push(now)
         }

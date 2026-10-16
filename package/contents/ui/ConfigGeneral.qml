@@ -49,6 +49,7 @@ KCM.SimpleKCM {
     property string cfg_usageDefaultBar: "session"
     property string cfg_profileSearchPath: "~"
     property bool cfg_showOmp: true
+    property bool cfg_ompUsage: true
     function resetToDefaults() {
         interval.value = 5
         attention.checked = true
@@ -86,6 +87,7 @@ KCM.SimpleKCM {
         page.cfg_usageDefaultBar = "session"
         page.cfg_profileSearchPath = "~"
         page.cfg_showOmp = true
+        page.cfg_ompUsage = true
         // The account list is deliberately not in here. It is the only setting
         // a person builds by hand rather than picks, and putting it one stray
         // click away from gone is not worth the tidiness.

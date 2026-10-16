@@ -222,6 +222,48 @@ reading at all. Only an `error` is carried forward like this. `absent` and
 would be a lie rather than a kindness. The percentage's tooltip says how old a
 kept reading is.
 
+#### OMP's logins
+
+OMP keeps its Claude logins in its own database, per agent directory, and
+refreshes their tokens as it uses them. Reading that database would mean
+handling another tool's credentials and still showing "expired" for a token OMP
+would have refreshed on its next request - so the widget asks OMP instead:
+
+```
+omp [--profile <name>] usage --json --provider anthropic --no-extensions
+```
+
+once for `~/.omp/agent` and once per `~/.omp/profiles/<name>/agent`, run from
+`/` so no project's settings apply. `scripts/omp-usage.jq` turns each
+Anthropic account in the answer into a row: `reports[]` become `ok` rows,
+`accountsWithoutUsage[]` `error`, `disabledCredentials[]` `expired`. Limits map
+onto Claude Code's bar ids - `anthropic:5h` is `session`, `anthropic:7d` is
+`weekly`, `Claude 7 Day (Fable)` is `scoped:Fable` - so a limit picked as the
+default means the same on both. A row's id is `omp:<agent-dir>#<account>` and
+it carries `group: omp:<agent-dir>`; when omp gives no usable answer at all the
+collector sends one `error` row whose id *is* the group, and `Usage.merge` lets
+it stand for every account of that group that had a reading, so a failed run
+keeps the bars on screen exactly as a failed Claude Code fetch does.
+
+`omp` is a Bun binary that maps about 13 GB of address space and touches about
+190 MB, so the collector's `ulimit -v` approach cannot bound it. It runs inside
+a transient systemd scope instead:
+
+```
+timeout -k 2 15 systemd-run --user --scope --quiet --collect \
+    -p MemoryMax=512M -p MemorySwapMax=0 -p TasksMax=64 -- omp …
+```
+
+The kernel enforces those on the scope: past 512 MB omp alone is OOM-killed
+inside it (measured: under a 64 MB cap it exits 137 and nothing else is
+touched). Output is read up to 1 MiB. Where `systemd-run` or the user manager's
+socket is missing, omp is not run and the row's state is `uncapped`. The whole
+usage run is also under `timeout -k 2 60` from `main.qml`.
+
+With nothing chosen, the footer and the panel strip follow the first account
+that has a reading rather than the first account: someone who has moved to OMP
+still has a signed-out `~/.claude` at the top of the list.
+
 ## Architecture
 
 ```
@@ -232,6 +274,7 @@ package/
     scripts/claude-sessions      # fish: registry + /proc + transcripts → JSON
     scripts/omp-sessions.jq      # OMP transcript tails → registry-shaped records
     scripts/claude-usage         # fish: credentials + usage API → JSON
+    scripts/omp-usage.jq         # `omp usage --json` → usage profiles
     code/sessions.js             # pure display logic, no Qt
     code/usage.js                # pure usage logic, no Qt
     ui/main.qml                  # PlasmoidItem: polling, state, colours
@@ -256,7 +299,7 @@ docs/design.md                   # this file
 
 ### The isolation boundary
 
-Everything with a decision in it sits in one of five testable units; the QML
+Everything with a decision in it sits in one of six testable units; the QML
 binds and lays out.
 
 **`scripts/claude-sessions`** owns the registry: which directories to read,
@@ -270,7 +313,10 @@ means. It prints one document and nothing else, which is also how it is tested -
 against them.
 
 **`scripts/claude-usage`** owns the credentials and the API call, with
-`CLAUDE_USAGE_FIXTURE` standing in for the network under test.
+`CLAUDE_USAGE_FIXTURE` standing in for the network under test, and asks omp
+for OMP's; **`scripts/omp-usage.jq`** owns what omp's answer means. The suite
+stands a fake `omp` and a fake `systemd-run` in for the real ones and checks
+the cap omp is started under.
 
 **`code/sessions.js`** and **`code/usage.js`** own presentation: relative ages,
 the summary sentence broken into colourable parts, which state dominates, the

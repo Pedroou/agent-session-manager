@@ -28,8 +28,14 @@
   first reply lands. An interactive session is found before that through the
   breadcrumb OMP keeps per terminal - looked for under `~/.omp` only - but one
   run headless, or over RPC, appears with its first reply.
-- **No plan usage for OMP.** The usage bar reads Claude Code's own login; OMP
-  keeps its credentials in its own database, which the widget does not open.
+- **OMP's plan usage needs systemd.** `omp` is only ever run where a systemd
+  user session can hold it to its memory cap; elsewhere its rows say they were
+  not checked rather than run it unbounded. Profiles are looked for under
+  `~/.omp/profiles` only, so an OMP relocated with `PI_CONFIG_DIR` or XDG paths
+  shows its stock account but not its named ones.
+- **Which OMP login a session is spending is not shown.** OMP can pool several
+  Claude accounts and pick one per request, and its transcripts record only a
+  hash of the account. The usage rows are per login, not per session.
 
 None of these are oversights. Each is a place where the thing the widget wants to
 know is not observable from outside the process, and guessing would have been

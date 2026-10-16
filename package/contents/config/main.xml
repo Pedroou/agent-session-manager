@@ -166,6 +166,13 @@
       <label>List OMP sessions alongside Claude Code ones.</label>
       <default>true</default>
     </entry>
+    <!-- Whether OMP's Anthropic logins get a plan usage row. Asking means
+         running omp itself, capped, every few minutes - so it has its own
+         switch, independent of whether OMP sessions are listed. -->
+    <entry name="ompUsage" type="Bool">
+      <label>Show plan usage for the Claude logins OMP has.</label>
+      <default>true</default>
+    </entry>
 
     <!-- Runtime state the popup owns, kept here so it survives a restart. -->
     <entry name="censorNames" type="Bool">

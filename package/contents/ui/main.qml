@@ -324,7 +324,12 @@ PlasmoidItem {
             return
         }
         lastUsageFetch = now
-        usageSource.connectSource(profilesEnv + shellQuote(usagePath))
+        // omp is a heavy runtime and only ever asked when its switch is on.
+        // The whole run is bounded: curl gives up after 8 s per account, omp
+        // after 15 s, and this after a minute whatever is going on.
+        var ompUsageEnv = plasmoid.configuration.ompUsage ? "" : "CLAUDE_USAGE_OMP=0 "
+        usageSource.connectSource(profilesEnv + ompUsageEnv + "timeout -k 2 60 "
+                                  + shellQuote(usagePath))
     }
 
     Timer {

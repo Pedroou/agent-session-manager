@@ -97,7 +97,14 @@ At the bottom, how much of your plan each account has used. Pick the limit each
 one tracks - session, weekly, or a model-scoped one - behind the dots on its
 row, and the panel bar follows whichever you chose. Accounts you have not picked
 for show the default, which is the session limit until you change it on the
-Popup page.
+Popup page. Until you pick an account, the footer and the panel bar follow the
+first one that has a reading.
+
+OMP's Claude logins get a row each, named the way their sessions are - **OMP**,
+or **OMP <profile>** for a named profile. The numbers come from `omp usage`,
+which OMP answers itself, so the widget never reads OMP's logins: a Claude
+account you only ever use through OMP has a usage bar without Claude Code being
+signed in at all.
 
 <div align="center">
 <img src="docs/screenshots/usage.gif" alt="The usage footer opened to show both accounts, their bars sliding between readings and changing colour" width="660">
@@ -107,7 +114,8 @@ Popup page.
 ## Install
 
 Requires **Plasma 6**, **fish 3.5+**, `jq`, `curl`, `timeout` and `kpackagetool6`.
-`install.fish` checks for all of them.
+`install.fish` checks for all of them. OMP's usage rows also need a systemd user
+session, which is what keeps `omp` to its memory cap.
 
 ```fish
 git clone https://github.com/Pedroou/claude-sessions-widget
@@ -135,7 +143,7 @@ takes effect:
   usage shows by default, which rows an expanded session has, and where the
   branch goes.
 - **Accounts** - which config directories to watch, and whether to show OMP
-  sessions.
+  sessions and OMP's plan usage.
 - **Colours** - all six status colours.
 
 ### Accounts
@@ -222,14 +230,23 @@ Ending a session from the popup checks first that the process is still the one
 that was listed - its start time in `/proc` has to match - so a pid reused by
 something else since is never signalled.
 
-Everything with a decision in it lives in two fish collectors, the jq program
-that reads OMP transcripts, and two Qt-free JavaScript files - all testable
-without a running Plasma shell:
+OMP's plan usage is asked of OMP: `omp usage --json --provider anthropic`, once
+for `~/.omp/agent` and once per named profile, each time plan usage refreshes.
+`omp` is a 200 MB runtime, so it only ever runs inside a transient systemd scope
+that the kernel holds to 512 MB of memory, no swap and 64 tasks - past that it
+alone is killed, inside its scope - and it is stopped after 15 seconds. Without
+a systemd user session to enforce that it is not run at all, and the row says
+so. A failed run keeps the last reading on screen, as a failed Claude Code fetch
+does.
+
+Everything with a decision in it lives in two fish collectors, the two jq
+programs that read OMP, and two Qt-free JavaScript files - all testable without
+a running Plasma shell:
 
 ```fish
-fish --no-config test/test-collectors.fish   # 119 assertions
+fish --no-config test/test-collectors.fish   # 135 assertions
 node --test test/sessions.test.js            # 35
-node --test test/usage.test.js               # 22
+node --test test/usage.test.js               # 26
 ```
 
 The fish suite builds a throwaway `$HOME`, a throwaway `/proc` **and** throwaway
@@ -246,9 +263,12 @@ that is not a session are covered rather than assumed.
 **What leaves your machine.** Only the plan-usage bar. It asks Anthropic for your
 limits using the login Claude Code already stores; the token goes to `curl`
 through stdin rather than argv, so it never appears in the process list, and it
-never reaches the widget's own code. Nothing else leaves the machine, nothing is
-written to your Claude Code or OMP config, and there is no server, no telemetry
-and nothing to sign up for.
+never reaches the widget's own code. For OMP's logins it runs `omp usage`, and
+OMP makes the same request with its own credentials. Nothing else leaves the
+machine, and the widget writes nothing to your Claude Code or OMP config
+(`omp usage` keeps its own cache and refreshes its own tokens, as it does
+whenever you run it). There is no server, no telemetry and nothing to sign up
+for.
 
 **About that endpoint.** It is the one Claude Code's own `/usage` view uses, and
 it is undocumented. Anthropic's terms describe the OAuth login as being for
@@ -261,7 +281,8 @@ page](https://code.claude.com/docs/en/legal-and-compliance).
 
 It is on by default because it is half of what the widget is for, and it is one
 checkbox to turn off: **Configure… → Popup → Plan usage for each profile**, plus
-**Panel → Plan Usage Bar** for the strip under the bars. The session list is
+**Panel → Plan Usage Bar** for the strip under the bars. OMP's rows have their
+own: **Accounts → Show plan usage for OMP's Claude logins**. The session list is
 unaffected either way - that half reads nothing but your own filesystem.
 
 ## Licence

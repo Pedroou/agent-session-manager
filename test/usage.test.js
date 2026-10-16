@@ -172,6 +172,60 @@ test("a selection that no longer exists falls back to the first account", () => 
     assert.equal(Usage.panelBar(usage, "/home/u/.gone", "session").percent, 12)
 })
 
+// Someone who moved to OMP keeps a signed-out ~/.claude at the top of the list,
+// and an unchosen strip pointed at that is a strip that never shows anything.
+test("with nothing chosen, the first account that has a reading is the one shown", () => {
+    const usage = {profiles: [
+        {id: "/home/u/.claude", name: "default", state: "expired", bars: []},
+        {id: "omp:/home/u/.omp/agent#acct", name: "OMP", agent: "omp", state: "ok", bars: [
+            {id: "session", label: "Session", percent: 4}]}
+    ]}
+    assert.equal(Usage.selectedId(usage, ""), "omp:/home/u/.omp/agent#acct")
+    assert.equal(Usage.selectedId(usage, "/home/u/.gone"), "omp:/home/u/.omp/agent#acct")
+    assert.equal(Usage.panelBar(usage, "", "session").percent, 4)
+    // A choice is still a choice, even of the account with nothing to show.
+    assert.equal(Usage.selectedId(usage, "/home/u/.claude"), "/home/u/.claude")
+})
+
+test("an OMP login's fix is in omp, not claude", () => {
+    const omp = {agent: "omp", bars: []}
+    assert.match(Usage.stateMessage(Object.assign({state: "expired"}, omp)), /in omp/)
+    assert.match(Usage.stateMessage(Object.assign({state: "error"}, omp)), /from omp/)
+    assert.match(Usage.stateMessage(Object.assign({state: "uncapped"}, omp)), /systemd/)
+})
+
+// When omp itself cannot answer, the collector cannot know which accounts it
+// would have listed, so it sends one error row for the whole agent directory.
+test("omp failing keeps every account of its agent directory on its last reading", () => {
+    const group = "omp:/home/u/.omp/agent"
+    const before = {fetchedAt: 1000, profiles: [
+        profile({id: group + "#a", name: "OMP · a@x", group, agent: "omp"}),
+        profile({id: group + "#b", name: "OMP · b@x", group, agent: "omp"}),
+        profile({id: "/home/u/.claude", name: "work"})
+    ]}
+    const after = Usage.merge(before, {fetchedAt: 2000, profiles: [
+        profile({id: "/home/u/.claude", name: "work"}),
+        {id: group, group, agent: "omp", name: "OMP", state: "error", bars: []}
+    ]})
+    assert.deepEqual(after.profiles.map(p => p.id), ["/home/u/.claude", group + "#a", group + "#b"])
+    const a = Usage.profileById(after, group + "#a")
+    assert.equal(a.stale, true)
+    assert.equal(a.since, 1000)
+    assert.equal(Usage.displayName(a), "OMP · a@x")
+
+    // With nothing to carry, the failure is what shows.
+    const cold = Usage.merge(null, {fetchedAt: 2000, profiles: [
+        {id: group, group, agent: "omp", name: "OMP", state: "error", bars: []}]})
+    assert.equal(cold.profiles[0].state, "error")
+})
+
+test("a kept reading keeps its name, not just its bars", () => {
+    const before = {fetchedAt: 1000, profiles: [profile({id: "/home/u/.claude", name: "day job"})]}
+    const after = Usage.merge(before, {fetchedAt: 2000, profiles: [
+        profile({id: "/home/u/.claude", name: "day job", state: "error", bars: []})]})
+    assert.equal(Usage.displayName(Usage.profileById(after, "/home/u/.claude")), "day job")
+})
+
 test("an account is shown by its name and identified by its directory", () => {
     assert.equal(Usage.displayName({id: "/home/u/.claude-side", name: "side"}), "side")
     // No name is not a crash: the directory is at least true.

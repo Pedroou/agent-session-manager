@@ -769,6 +769,91 @@ check "a transcript with no newline is still one session" "huge done" \
 check "a breadcrumb pointing elsewhere reads nothing" "" \
     (echo $out | jq -r '.sessions[] | select(.pid==4395) | .pid')
 
+echo
+echo "═══ Task 37: plan usage asks omp about its own logins, inside a cap ═══"
+setup
+set -e CLAUDE_PROFILES
+set -gx CLAUDE_PROFILES '[]'
+mkdir -p $ROOT/.omp/agent $ROOT/.omp/profiles/side/agent $ROOT/bin $ROOT/run/systemd
+# A systemd user manager, as far as the collector can tell: its socket.
+python3 -c "import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])" $ROOT/run/systemd/private
+set -gx XDG_RUNTIME_DIR $ROOT/run
+# A systemd-run that writes down how it was asked, then runs what follows `--`.
+printf '%s\n' '#!/usr/bin/env -S fish --no-config' \
+    'echo $argv >>'$ROOT'/systemd-run.log' \
+    'set -l i (contains -i -- -- $argv)' \
+    'set -l command $argv[(math $i + 1)..]' \
+    'exec $command' >$ROOT/bin/systemd-run
+# An omp that writes down its arguments and where it was run, then prints
+# whatever report the test left for it.
+printf '%s\n' '#!/usr/bin/env -S fish --no-config' \
+    'echo (pwd) $argv >>'$ROOT'/omp.log' \
+    'test -f '$ROOT'/report.json; or exit 1' \
+    'cat '$ROOT'/report.json' >$ROOT/bin/omp
+chmod +x $ROOT/bin/systemd-run $ROOT/bin/omp
+set -gx CLAUDE_USAGE_SYSTEMD_RUN $ROOT/bin/systemd-run
+set -gx CLAUDE_USAGE_OMP_BIN $ROOT/bin/omp
+jq -n '{reports: [
+    {provider: "anthropic", metadata: {accountId: "acct-1", email: "a@example.com"},
+     limits: [
+        {id: "anthropic:5h", label: "Claude 5 Hour", window: {resetsAt: 1792182000000},
+         amount: {usedFraction: 0.04, unit: "percent"}},
+        {id: "anthropic:7d", label: "Claude 7 Day", window: {resetsAt: 1792684800000},
+         amount: {usedFraction: 0.19, unit: "percent"}},
+        {id: "anthropic:7d:fable", label: "Claude 7 Day (Fable)", window: {resetsAt: null},
+         amount: {usedFraction: 0, unit: "percent"}}]},
+    {provider: "openai-codex", metadata: {accountId: "codex-1"}, limits: []}],
+  accountsWithoutUsage: [], disabledCredentials: []}' >$ROOT/report.json
+set out ($USAGE)
+check "one row per agent directory's Anthropic login, named like its sessions" "OMP:ok OMP side:ok" \
+    (echo $out | jq -r '[.profiles[] | "\(.name):\(.state)"] | join(" ")')
+check "identified by agent directory and account" "omp:$ROOT/.omp/agent#acct-1" \
+    (echo $out | jq -r '.profiles[0].id')
+check "limits use the same ids as Claude Code's" "session=4 weekly=19 scoped:Fable=0" \
+    (echo $out | jq -r '[.profiles[0].bars[] | "\(.id)=\(.percent)"] | join(" ")')
+check "and say when they reset" 2026-10-16T20:20:00Z (echo $out | jq -r '.profiles[0].bars[0].resetsAt')
+check "only Anthropic accounts become rows" 2 (echo $out | jq '.profiles | length')
+check "omp runs inside a scope capped at 512 MB, no swap and 64 tasks" \
+    "--user --scope --quiet --collect -p MemoryMax=512M -p MemorySwapMax=0 -p TasksMax=64 --" \
+    (string match -r -- '^.*-- ' (head -n 1 $ROOT/systemd-run.log) | string trim)
+check "asked for Anthropic only, with no extensions, away from any project" \
+    "/ usage --json --provider anthropic --no-extensions" (head -n 1 $ROOT/omp.log)
+check "a named profile is asked with --profile" \
+    "/ --profile side usage --json --provider anthropic --no-extensions" (sed -n 2p $ROOT/omp.log)
+
+rm $ROOT/report.json
+set out ($USAGE)
+check "omp failing is one error row per agent directory" "omp:$ROOT/.omp/agent:error" \
+    (echo $out | jq -r '.profiles[0] | "\(.id):\(.state)"')
+echo 'not json at all' >$ROOT/report.json
+set out ($USAGE)
+check "and so is omp saying something that is not a report" "error error" \
+    (echo $out | jq -r '[.profiles[].state] | join(" ")')
+echo '{"reports": [], "accountsWithoutUsage": [], "disabledCredentials": [
+    {"provider": "anthropic", "accountId": "acct-2", "email": "b@example.com"}]}' >$ROOT/report.json
+rm -rf $ROOT/.omp/profiles
+set out ($USAGE)
+check "a login omp has disabled reads as signed out" "omp:$ROOT/.omp/agent#acct-2 expired" \
+    (echo $out | jq -r '.profiles[0] | "\(.id) \(.state)"')
+echo '{"reports": [], "accountsWithoutUsage": [], "disabledCredentials": []}' >$ROOT/report.json
+check "no Anthropic login in OMP is no row" 0 ($USAGE | jq '.profiles | length')
+
+rm -f $ROOT/omp.log
+set -gx CLAUDE_USAGE_OMP 0
+check "switched off, there is no OMP row" 0 ($USAGE | jq '.profiles | length')
+set -e CLAUDE_USAGE_OMP
+check "and omp is never started" no (test -e $ROOT/omp.log; and echo yes; or echo no)
+
+# No systemd user manager: nothing can hold omp to a ceiling, so it is not run.
+rm $ROOT/run/systemd/private
+set out ($USAGE)
+check "without the cap, omp is not run" no (test -e $ROOT/omp.log; and echo yes; or echo no)
+check "and the row says why" uncapped (echo $out | jq -r '.profiles[0].state')
+set -e CLAUDE_USAGE_OMP_BIN
+set -e CLAUDE_USAGE_SYSTEMD_RUN
+set -e XDG_RUNTIME_DIR
+set -e CLAUDE_PROFILES
+
 
 echo
 echo "═══ Tripwire: the real session registry was untouched ═══"

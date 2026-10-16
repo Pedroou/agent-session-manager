@@ -69,7 +69,7 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
-            text: i18n("Uses the network: Requests Anthropic for your plan limits every five minutes through the current Claude Code login.")
+            text: i18n("Uses the network: Requests Anthropic for your plan limits every five minutes through the current Claude Code login, and has omp do the same for its own.")
         }
 
         // Here rather than on the Panel page, even though the panel strip
