@@ -168,6 +168,7 @@ Item {
             // overhangs the rows above it by the scrollbar's width the moment
             // the list is long enough to scroll.
             scrollbarInset: scroller.visible ? scroller.width - scroller.availableWidth : 0
+            showRule: full.shown.length > 0
             // With no accounts there is nothing under the rule, and a rule with
             // nothing under it is just a line across the bottom of the popup.
             visible: plasmoid.configuration.showUsage

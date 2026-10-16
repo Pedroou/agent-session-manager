@@ -18,6 +18,12 @@ ColumnLayout {
     // footer can stop short of it and stay lined up with the rows.
     property real scrollbarInset: 0
 
+    // Whether the rule above the accounts is drawn. It exists to divide the
+    // footer from the session list; with no sessions there is nothing to divide.
+    // Hidden by opacity, not visibility, so it keeps its room: the popup's
+    // height is fixed on purpose and must not shift when the last session ends.
+    property bool showRule: true
+
     readonly property var usage: widget ? widget.usage : null
     readonly property bool expanded: plasmoid.configuration.usageExpanded
     readonly property var profiles: Usage.selectableProfiles(usage)
@@ -56,6 +62,7 @@ ColumnLayout {
     }
 
     Kirigami.Separator {
+        opacity: footer.showRule ? 1 : 0
         Layout.fillWidth: true
         // The popup pads its own edges more generously than a row pads itself, so
         // without this the footer sits hard up against the rule while having room
