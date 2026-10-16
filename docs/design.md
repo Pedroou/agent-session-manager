@@ -170,7 +170,7 @@ stock one; `~/.omp/profiles/<name>/agent` is the named profile `<name>`, shown a
 is passed back through `PI_CODING_AGENT_DIR`, and a transcript kept outside
 every agent directory (`--session-dir`) resumes by its path.
 
-**Off, and the ceilings when on.** The Accounts page's **Show OMP sessions**
+**Off, and the ceilings when on.** The General page's **Show OMP sessions**
 (`showOmp`, default on) sends `CLAUDE_SESSIONS_OMP=0` to the collector, which
 then skips the whole OMP section - no `/proc` scan, no reads, no processes. On,
 what it can cost is bounded whatever the machine is doing:
@@ -476,12 +476,14 @@ thing it is - the same split the widely-used plasmoids arrive at once they have
 both a panel and a popup to configure, and the reason a single "General" page
 stopped working here.
 
-**General** - how often to check, the needs-attention highlight, and the privacy
-toggle that blanks names and paths. Then, last and set apart, one button that
-resets every page. Plasma's applet dialog has no Defaults button of its own, so
-the widget provides it; a control that throws away every setting belongs at the
-end of the first page rather than at the top competing with the settings it would
-discard.
+**General** - how often to check, the needs-attention highlight, the privacy
+toggle that blanks names and paths, and OMP's two switches: its sessions, and
+its plan usage. They sit here rather than with the accounts because OMP has no
+accounts to list - both are found on their own. Then, last and set apart, one
+button that resets every page. Plasma's applet dialog has no Defaults button of
+its own, so the widget provides it; a control that throws away every setting
+belongs at the end of the first page rather than at the top competing with the
+settings it would discard.
 
 **Panel** - the session count and its size, and the usage strip: whether to show
 it, how used the limit has to be before it appears, and whether it colours itself

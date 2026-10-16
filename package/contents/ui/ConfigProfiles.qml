@@ -18,14 +18,13 @@ import "../code/sessions.js" as Sessions
 // from this list has to stay removed across restarts, and it cannot if anything
 // re-runs the search on its own.
 //
-// OMP has no accounts to list, only its two switches at the foot of the page.
+// OMP has no accounts to list here: its sessions and its logins are both found
+// on their own, and its two switches are on the General page.
 KCM.SimpleKCM {
     id: page
 
     property string cfg_profiles: "[]"
     property alias cfg_profileSearchPath: searchPath.text
-    property alias cfg_showOmp: showOmp.checked
-    property alias cfg_ompUsage: ompUsage.checked
 
     // The list, parsed. Held rather than re-parsed on every read: the rows below
     // edit it, and re-parsing on each keystroke would throw away the text cursor
@@ -445,48 +444,6 @@ KCM.SimpleKCM {
                     }
                 }
             }
-        }
-
-        Kirigami.Separator {
-            Layout.fillWidth: true
-            Layout.topMargin: Kirigami.Units.largeSpacing
-            Layout.bottomMargin: Kirigami.Units.largeSpacing
-        }
-
-        Kirigami.Heading {
-            level: 4
-            text: i18n("OMP")
-        }
-
-        // OMP has no accounts to list: its sessions are found from the running
-        // processes, and its logins are whatever omp itself reports, named
-        // profiles included - so the only choices are whether to look at all.
-        QQC2.CheckBox {
-            id: showOmp
-            text: i18n("Show OMP sessions")
-        }
-
-        QQC2.Label {
-            Layout.fillWidth: true
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 26
-            wrapMode: Text.WordWrap
-            font: Kirigami.Theme.smallFont
-            color: Kirigami.Theme.disabledTextColor
-            text: i18n("Finds every running omp and reads the end of the transcript it has open. Off, none of that runs.")
-        }
-
-        QQC2.CheckBox {
-            id: ompUsage
-            text: i18n("Show plan usage for OMP's Claude logins")
-        }
-
-        QQC2.Label {
-            Layout.fillWidth: true
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 26
-            wrapMode: Text.WordWrap
-            font: Kirigami.Theme.smallFont
-            color: Kirigami.Theme.disabledTextColor
-            text: i18n("Asks omp itself, with omp usage, whenever plan usage refreshes - so the widget never reads OMP's logins. omp runs held to 512 MB and 15 seconds, and only where systemd can enforce that.")
         }
     }
 }

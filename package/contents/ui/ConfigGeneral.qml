@@ -48,8 +48,8 @@ KCM.SimpleKCM {
     property string cfg_usageBars: "{}"
     property string cfg_usageDefaultBar: "session"
     property string cfg_profileSearchPath: "~"
-    property bool cfg_showOmp: true
-    property bool cfg_ompUsage: true
+    property alias cfg_showOmp: showOmp.checked
+    property alias cfg_ompUsage: ompUsage.checked
     function resetToDefaults() {
         interval.value = 5
         attention.checked = true
@@ -86,8 +86,8 @@ KCM.SimpleKCM {
         page.cfg_usageBars = "{}"
         page.cfg_usageDefaultBar = "session"
         page.cfg_profileSearchPath = "~"
-        page.cfg_showOmp = true
-        page.cfg_ompUsage = true
+        showOmp.checked = true
+        ompUsage.checked = true
         // The account list is deliberately not in here. It is the only setting
         // a person builds by hand rather than picks, and putting it one stray
         // click away from gone is not worth the tidiness.
@@ -140,6 +140,40 @@ KCM.SimpleKCM {
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
             text: i18n("For screen-sharing. The eye in the popup's header does the same thing.")
+        }
+
+        // OMP has no accounts to list: its sessions are found from the running
+        // processes, and its logins are whatever omp itself reports, named
+        // profiles included - so the only choices are whether to look at all.
+        Item {
+            Kirigami.FormData.isSection: true
+        }
+
+        QQC2.CheckBox {
+            id: showOmp
+            Kirigami.FormData.label: i18n("OMP:")
+            text: i18n("Show OMP sessions")
+        }
+
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            color: Kirigami.Theme.disabledTextColor
+            text: i18n("Finds every running omp and reads the end of the transcript it has open. Off, none of that runs.")
+        }
+
+        QQC2.CheckBox {
+            id: ompUsage
+            text: i18n("Show plan usage for OMP's Claude logins")
+        }
+
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            color: Kirigami.Theme.disabledTextColor
+            text: i18n("Asks omp itself, with omp usage, whenever plan usage refreshes - so the widget never reads OMP's logins. omp runs held to 512 MB and 15 seconds, and only where systemd can enforce that.")
         }
 
         // Last, and set apart. Plasma's applet dialog has no Defaults button of its

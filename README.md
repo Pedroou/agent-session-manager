@@ -134,16 +134,16 @@ Plasma caches applet QML. `install.fish` prints the command.
 Right-click the widget → **Configure…**. Five pages, split by where each setting
 takes effect:
 
-- **General** - how often to check, the needs-attention highlight, and the
-  privacy toggle. Plus one button that resets every page.
+- **General** - how often to check, the needs-attention highlight, the privacy
+  toggle, and whether to show OMP sessions and OMP's plan usage. Plus one button
+  that resets every page.
 - **Panel** - the session count and its size, and the usage bar: whether to show
   it, how used the limit must be before it appears, and whether it colours by
   severity.
 - **Popup** - how many sessions it shows before scrolling, which limit plan
   usage shows by default, which rows an expanded session has, and where the
   branch goes.
-- **Accounts** - which config directories to watch, and whether to show OMP
-  sessions and OMP's plan usage.
+- **Accounts** - which config directories to watch.
 - **Colours** - all six status colours.
 
 ### Accounts
@@ -217,7 +217,7 @@ no transcript open; it is found through the breadcrumb OMP leaves for its
 terminal, the same file `omp --continue` reads. The resume command is
 `omp --resume <id>`, with `--profile` for a named profile.
 
-**Show OMP sessions**, on the Accounts page, switches all of this off: no
+**Show OMP sessions**, on the General page, switches all of this off: no
 process scan, no reads, nothing run. On, its cost has fixed ceilings: at most 32
 sessions, and of each transcript at most 4 KiB of its first line and 128 KiB of
 its end. If a command cannot start, for want of memory or anything else, that
@@ -282,7 +282,7 @@ page](https://code.claude.com/docs/en/legal-and-compliance).
 It is on by default because it is half of what the widget is for, and it is one
 checkbox to turn off: **Configure… → Popup → Plan usage for each profile**, plus
 **Panel → Plan Usage Bar** for the strip under the bars. OMP's rows have their
-own: **Accounts → Show plan usage for OMP's Claude logins**. The session list is
+own: **General → Show plan usage for OMP's Claude logins**. The session list is
 unaffected either way - that half reads nothing but your own filesystem.
 
 ## Licence
