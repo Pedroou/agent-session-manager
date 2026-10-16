@@ -45,6 +45,7 @@ KCM.SimpleKCM {
     property string cfg_nicknames: "{}"
     property string cfg_usageProfile: ""
     property bool cfg_usageExpanded: false
+    property string cfg_usageRecent: "[]"
     property string cfg_usageBars: "{}"
     property string cfg_usageDefaultBar: "session"
     property string cfg_profileSearchPath: "~"
@@ -83,6 +84,7 @@ KCM.SimpleKCM {
         page.cfg_nicknames = "{}"
         page.cfg_usageProfile = ""
         page.cfg_usageExpanded = false
+        page.cfg_usageRecent = "[]"
         page.cfg_usageBars = "{}"
         page.cfg_usageDefaultBar = "session"
         page.cfg_profileSearchPath = "~"

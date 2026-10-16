@@ -137,6 +137,51 @@ function selectedId(usage, wantedId) {
     return profile ? profile.id : ""
 }
 
+// The order the footer lists accounts in: most recently shown first.
+//
+// `recent` is a history of account ids, newest first, and the widget writes
+// into it whichever account is actually being shown - picked by hand or fallen
+// back to on its own. So the history's head is always the current account, and
+// ordering by the history alone puts it on top without a rule of its own, with
+// the one shown before it second, and so on. Accounts the history has never
+// seen come after, in the order the collector gave them.
+var RECENT_LIMIT = 32
+
+function remember(recent, id) {
+    var list = Array.isArray(recent) ? recent : []
+    if (!id) {
+        return list
+    }
+    var out = [id]
+    for (var i = 0; i < list.length && out.length < RECENT_LIMIT; i++) {
+        if (list[i] !== id && typeof list[i] === "string") {
+            out.push(list[i])
+        }
+    }
+    return out
+}
+
+function byRecency(profiles, recent) {
+    var list = profiles || []
+    var rank = {}
+    var seen = Array.isArray(recent) ? recent : []
+    for (var i = 0; i < seen.length; i++) {
+        if (rank[seen[i]] === undefined) {
+            rank[seen[i]] = i
+        }
+    }
+    // Decorated rather than compared in place: Array.prototype.sort was not
+    // guaranteed stable before ES2019, and ties must keep the collector's order.
+    return list.map(function (p, index) {
+        var r = rank[p.id]
+        return {p: p, r: r === undefined ? seen.length : r, index: index}
+    }).sort(function (a, b) {
+        return a.r - b.r || a.index - b.index
+    }).map(function (x) {
+        return x.p
+    })
+}
+
 // What to call an account on screen. The id is its directory, which is right
 // for identity and wrong for a label.
 function displayName(profile) {
@@ -228,6 +273,8 @@ if (typeof module !== "undefined" && module.exports) {
         resetText: resetText,
         stateMessage: stateMessage,
         profileById: profileById,
+        remember: remember,
+        byRecency: byRecency,
         selectableProfiles: selectableProfiles,
         selectedProfile: selectedProfile,
         selectedId: selectedId,

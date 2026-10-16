@@ -264,6 +264,20 @@ With nothing chosen, the footer and the panel strip follow the first account
 that has a reading rather than the first account: someone who has moved to OMP
 still has a signed-out `~/.claude` at the top of the list.
 
+#### The footer's order
+
+Opened up, the footer lists accounts most recently shown first. There is no
+"current account goes on top" rule; there is one history, `usageRecent`, newest
+first, and `main.qml` writes into it whichever account is actually on screen -
+picked by hand, picked automatically on a first run, or fallen back to after the
+picked one went away. Since the history's head is therefore always the current
+account, `Usage.byRecency` ordering by the history alone puts it on top, the one
+shown before it second, and accounts never shown after, in the collector's
+order. The write only happens when the head is wrong, and it is checked when
+either the selection or the history changes, so a reset or a hand-edited history
+is put right at once without the write ever triggering itself. The history keeps
+the 32 most recent ids.
+
 ## Architecture
 
 ```

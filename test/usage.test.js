@@ -226,6 +226,48 @@ test("a kept reading keeps its name, not just its bars", () => {
     assert.equal(Usage.displayName(Usage.profileById(after, "/home/u/.claude")), "day job")
 })
 
+// The footer's order is the history of accounts shown, newest first - and the
+// widget records the one on screen however it got there, so the history's head
+// is always the current account. These walk that through as the widget does.
+test("the footer lists accounts most recently shown first", () => {
+    const ids = list => list.map(p => p.id)
+    const profiles = [{id: "default"}, {id: "personal"}, {id: "omp"}]
+
+    // Never run before: nothing picked, so the widget falls back to an
+    // account and records that one like any other.
+    let recent = Usage.remember([], "default")
+    assert.deepEqual(ids(Usage.byRecency(profiles, recent)), ["default", "personal", "omp"])
+
+    recent = Usage.remember(recent, "omp")
+    assert.deepEqual(ids(Usage.byRecency(profiles, recent)), ["omp", "default", "personal"])
+
+    recent = Usage.remember(recent, "personal")
+    assert.deepEqual(ids(Usage.byRecency(profiles, recent)), ["personal", "omp", "default"])
+
+    // Back to one already in the history: it moves up, it is not listed twice.
+    recent = Usage.remember(recent, "omp")
+    assert.deepEqual(recent, ["omp", "personal", "default"])
+    assert.deepEqual(ids(Usage.byRecency(profiles, recent)), ["omp", "personal", "default"])
+})
+
+test("accounts the history has not seen follow it in the collector's order", () => {
+    const profiles = [{id: "a"}, {id: "b"}, {id: "c"}, {id: "d"}]
+    assert.deepEqual(Usage.byRecency(profiles, ["c", "gone"]).map(p => p.id), ["c", "a", "b", "d"])
+    assert.deepEqual(Usage.byRecency(profiles, null).map(p => p.id), ["a", "b", "c", "d"])
+    assert.deepEqual(Usage.byRecency(null, ["a"]), [])
+})
+
+test("the history stays bounded and ignores nothing-selected", () => {
+    let recent = []
+    for (let i = 0; i < 100; i++) {
+        recent = Usage.remember(recent, "acct-" + i)
+    }
+    assert.equal(recent.length, 32)
+    assert.equal(recent[0], "acct-99")
+    assert.deepEqual(Usage.remember(["a"], ""), ["a"])
+    assert.deepEqual(Usage.remember("junk", "a"), ["a"])
+})
+
 test("an account is shown by its name and identified by its directory", () => {
     assert.equal(Usage.displayName({id: "/home/u/.claude-side", name: "side"}), "side")
     // No name is not a crash: the directory is at least true.

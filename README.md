@@ -98,7 +98,8 @@ one tracks - session, weekly, or a model-scoped one - behind the dots on its
 row, and the panel bar follows whichever you chose. Accounts you have not picked
 for show the default, which is the session limit until you change it on the
 Popup page. Until you pick an account, the footer and the panel bar follow the
-first one that has a reading.
+first one that has a reading. Opened up, the footer lists accounts most recently
+shown first: the one on screen at the top, the one before it second, and so on.
 
 OMP's Claude logins get a row each, named the way their sessions are - **OMP**,
 or **OMP <profile>** for a named profile. The numbers come from `omp usage`,
@@ -246,7 +247,7 @@ a running Plasma shell:
 ```fish
 fish --no-config test/test-collectors.fish   # 135 assertions
 node --test test/sessions.test.js            # 35
-node --test test/usage.test.js               # 26
+node --test test/usage.test.js               # 29
 ```
 
 The fish suite builds a throwaway `$HOME`, a throwaway `/proc` **and** throwaway

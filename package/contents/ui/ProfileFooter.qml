@@ -26,7 +26,10 @@ ColumnLayout {
 
     readonly property var usage: widget ? widget.usage : null
     readonly property bool expanded: plasmoid.configuration.usageExpanded
-    readonly property var profiles: Usage.selectableProfiles(usage)
+    // Most recently shown first. The account on screen is always the newest
+    // entry in that history, so it sits on top, and the one before it second.
+    readonly property var profiles: Usage.byRecency(Usage.selectableProfiles(usage),
+                                                    widget ? widget.usageRecent : [])
     // Resolved rather than read straight off the setting: the account that was
     // selected can be renamed away or removed, and a stale id would leave the
     // footer showing nothing at all.
@@ -90,8 +93,8 @@ ColumnLayout {
 
                 // Collapsed, only the chosen account is on screen; the others
                 // are one click away rather than gone. Given no height rather
-                // than filtered out of the model, so an account's position in
-                // the list never depends on which one is selected.
+                // than filtered out of the model, so expanding is the same list
+                // growing rather than a different one being built.
                 readonly property bool isSelected: modelData.id === footer.selected
                 visible: footer.expanded || isSelected
 

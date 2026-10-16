@@ -82,6 +82,35 @@ PlasmoidItem {
         plasmoid.configuration.usageBars = JSON.stringify(map)
     }
 
+    // The account plan usage is showing, as resolved - the one picked, or the
+    // one fallen back to when nothing has been picked or the pick is gone.
+    readonly property string usageSelected: Usage.selectedId(usage, plasmoid.configuration.usageProfile)
+
+    // Every account shown so far, newest first; the footer lists them in this
+    // order (Usage.byRecency).
+    readonly property var usageRecent: {
+        try {
+            var list = JSON.parse(plasmoid.configuration.usageRecent || "[]")
+            return Array.isArray(list) ? list : []
+        } catch (e) {
+            return []
+        }
+    }
+
+    // Kept so the history's head is always the account on screen, however it
+    // got there - a click, the first run's automatic pick, or a fallback after
+    // the picked one went away. Run on both ends, so a history that is reset or
+    // edited from under it is put right too; it only writes when the head is
+    // wrong, so writing cannot set it off again.
+    function rememberShown() {
+        if (usageSelected === "" || usageRecent[0] === usageSelected) {
+            return
+        }
+        plasmoid.configuration.usageRecent = JSON.stringify(Usage.remember(usageRecent, usageSelected))
+    }
+    onUsageSelectedChanged: rememberShown()
+    onUsageRecentChanged: rememberShown()
+
     // Told to every open row when the popup closes, so the next opening starts
     // collapsed rather than showing whatever was left expanded.
     signal collapseAll()
