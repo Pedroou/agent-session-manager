@@ -3,7 +3,8 @@ import QtQuick.Layouts
 import org.kde.plasma.components as PlasmaComponents3
 import org.kde.kirigami as Kirigami
 
-// Confirmation that something reached the clipboard.
+// Confirmation that something reached the clipboard, and the odd one-line answer
+// to something else the popup was asked to do.
 //
 // It floats over the list rather than sitting in the layout, so a copy never
 // reflows the popup underneath the pointer - and it says *what* was copied,
@@ -17,6 +18,7 @@ Rectangle {
     id: toast
 
     property string notice: ""
+    property string icon: "edit-copy-symbolic"
 
     // Held separately so the text does not vanish halfway through the fade out,
     // which would shrink the pill as it disappears.
@@ -46,7 +48,7 @@ Rectangle {
         spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Icon {
-            source: "edit-copy-symbolic"
+            source: toast.icon
             isMask: true
             color: Kirigami.Theme.highlightedTextColor
             implicitWidth: Kirigami.Units.iconSizes.small

@@ -47,6 +47,7 @@ Item {
 
     CopyToast {
         notice: full.widget ? full.widget.copyNotice : ""
+        icon: full.widget ? full.widget.noticeIcon : "edit-copy-symbolic"
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         // Clears the usage footer, whatever height it happens to be.

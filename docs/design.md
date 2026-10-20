@@ -303,6 +303,7 @@ package/
     ui/Config{General,Panel,Popup,Profiles,Colours}.qml
     config/{main.xml,config.qml}
     scripts/claude-find-profiles   # account discovery, for the settings page
+    scripts/jump-to-session        # bring a session's window and tab forward
     icons/{io.github.pedroou.agentsessionmanager,reload}.svg
 test/
   sessions.test.js               # node tests for the pure layers
@@ -398,18 +399,31 @@ ceiling in settings, past which the list scrolls.
 Claude Code Sessions                    👁  ⟳
 1 waiting for you, 2 running, 1 done
 ──────────────────────────────────────────────
-▎ checkout-flow-7                          Waiting
-▎ checkout-flow - input needed                    12s
-▎ docs-site-b2      ✎  ✕  Running
-▎ docs-site - npm run build           4m
+▎ checkout-flow-7                     12s Waiting
+▎ checkout-flow - input needed   Opus 5.5 ▬▬▬── 34%
+▎ docs-site-b2      ✎  ✕          4m Running
+▎ docs-site - npm run build    Sonnet 4.5 ▬──── 12%
 ──────────────────────────────────────────────
 ▸ work        ▸  Session ███░░░░░░░  11%
 ```
 
-Clicking a row opens its details - Profile, Uptime, Directory, Repository,
+Each row's right-hand column says the state and how long it has been in it, and
+under that the model the session is on with how full its context is. The model
+is named the way people say it - `claude-opus-5-5` is "Opus 5.5" - and the bar
+takes the theme accent until three quarters full, then amber, then red past
+90%, since that is where a turn starts to risk compaction. Hovering it gives the
+tokens: "224K of 1M tokens of context". There is no "ctx" label: next to a
+model's name a bar can only be one thing.
+
+Clicking a session's name takes you to it (see [Jumping to a
+session](#jumping-to-a-session)); the name underlines under the pointer, as a
+link does, and is clickable only as far as its text reaches. Clicking anywhere
+else on the row opens its details - Profile, Uptime, Directory, Repository,
 Branch, Session, Process, Version - and clicking any value copies it. Right-
 clicking copies the whole thing when open, and the command to get back into the
-session when closed.
+session when closed. The name is the link rather than the row because the row
+already had a job people knew, and a link is the one control that announces
+itself without a hover-only button.
 
 Every copy is confirmed by a pill that floats over the list for about two
 seconds. It floats rather than sitting in the layout so a copy never reflows the
@@ -417,9 +431,11 @@ popup under the pointer, and it names what it took - "Repository copied",
 "Resume command copied" - because a single row offers half a dozen copy targets
 and a bare "Copied" would leave you guessing which one you hit. It is
 deliberately not a system notification: this is a keystroke-sized action, and
-routing it to the notification centre would bury the messages that matter. Hovering reveals a pencil, which gives the session a
-nickname the widget keeps, and a close button that asks once before ending it.
-The eye in the header blanks every name and path for screen-sharing.
+routing it to the notification centre would bury the messages that matter. The
+same pill says why a jump went nowhere. Hovering reveals a pencil, which gives
+the session a nickname the widget keeps, and a close button that asks once
+before ending it. The eye in the header blanks every name and path for
+screen-sharing.
 
 **The panel's usage strip.** Under the session bars, a thin bar for whichever
 limit the popup's footer is set to, on whichever profile it has selected - the
@@ -432,6 +448,60 @@ rail and its "Working" label together. The label follows the rail's opacity
 rather than running a second animation, because two identical animations started
 in the same frame look synchronised right up until something restarts one of
 them. It stops when the user has turned animations off.
+
+## Model and context
+
+Neither agent publishes how full a session's context is, but both write down
+what is needed to work it out. Every reply in a transcript carries the model id
+and the token counts of the request that produced it, and a request's prompt -
+uncached, written to cache and read from cache together - is exactly what
+occupied the context window at that moment.
+
+For Claude Code the collector reads the transcript backwards with `tac` and
+stops at the fourth assistant line, so the cost does not grow with the length of
+the conversation, and passes over the entries that say nothing about the
+session's own context: a subagent's (`isSidechain`), and the ones Claude Code
+writes itself for an API error (model `<synthetic>`). All sessions share one
+jq. For OMP, `omp-sessions.jq` already has the tail; the model is the last one
+named, by a reply or by a `/model` switch made since, and the tokens come from
+the last reply.
+
+The window is the part neither records, so `Sessions.contextWindow` derives it
+from the model, the way both tools size it: Fable, Sonnet 5 and later, Haiku 5.5
+and Opus 4.7 and later have a native 1M window; Opus 4.6 and Sonnet 4.6 get 1M
+in OMP by default but in Claude Code only through a `[1m]` variant the
+transcript does not keep, so they read as 200K there - until a session holds
+more than 200K, which proves the variant. A model the widget does not know is
+named but gets no bar, rather than a percentage of a guess.
+
+## Jumping to a session
+
+`scripts/jump-to-session <pid> <procStart>` brings the session forward. The
+start time is checked first, as it is before ending one, so a pid handed to
+another process since the list was drawn is never acted on.
+
+A session is a process and what shows it is one of its ancestors, so the script
+walks up the process tree:
+
+- **tmux.** The session's own environment names its pane (`$TMUX_PANE`) and the
+  server's socket (`$TMUX`). That pane is selected; a client already showing its
+  tmux session is used, or else the most recently active client is switched to
+  it, and the walk carries on from that client - the server has no window.
+- **Konsole.** Each tab is a D-Bus session whose `processId` is the shell the tab
+  started, which is the ancestor directly below `konsole`. The window that holds
+  it is told `setCurrentSession`.
+- **The window.** Only the compositor can activate a window on Wayland, so a
+  KWin script does it: handed every ancestor's pid, nearest first, it activates
+  the first one that owns a window. One Konsole or one VS Code process can own
+  several windows, so a hint picks between them - the tab's title, or the
+  session's directory, which VS Code puts in its window title.
+
+Anything else that hosts a session - another terminal, VS Code's integrated
+terminal or its Claude Code panel - gets its window raised but no tab chosen.
+The script exits 1 with a sentence on stderr when there is nothing to jump to,
+and the popup shows it in the same pill as a copy; success needs no word, since
+the window that comes forward takes the focus and the popup closes as it loses
+it, or stays if pinned.
 
 ## Interrupting
 
@@ -542,8 +612,13 @@ All of it resets from one button, at the foot of the General page.
   documented API, and the `status` vocabulary could grow. Two things contain
   that: an unrecognised status is displayed rather than dropped, and all the
   interpretation lives in one bash script with its own test suite.
-- **So is the usage endpoint**, and so is `isApiErrorMessage`. A change to
-  either degrades one panel of the widget, not the widget.
+- **So is the usage endpoint**, and so is `isApiErrorMessage`, and so are the
+  `model` and `usage` fields on a transcript's replies. A change to any of them
+  degrades one part of the widget - a bar goes missing - not the widget.
+- **Konsole's D-Bus interface can be switched off.** Konsole's "security
+  sensitive" D-Bus calls can be disabled; choosing a tab is not one of them, but
+  if a future Konsole moves it there, jumping still raises the window and only
+  the tab stays where it was.
 - **So is OMP's transcript, in part.** Its layout is written up in OMP's own
   documentation, but `tool_execution_start` and the title slot are core
   bookkeeping rather than an interface. A change there costs Running, Waiting or

@@ -122,12 +122,35 @@ Item {
             Layout.alignment: Qt.AlignTop
             spacing: 0
 
+            // The name is a link to the session itself: click it and its
+            // terminal comes forward, on the right tab. The rest of the row
+            // still opens the details. Only as wide as the text, so the link is
+            // where it looks like it is.
             PlasmaComponents3.Label {
-                Layout.fillWidth: true
+                id: nameLink
+                Layout.maximumWidth: headings.width
                 text: row.name
                 elide: Text.ElideRight
                 maximumLineCount: 1
                 visible: !row.renaming
+                font.underline: nameHover.hovered
+
+                HoverHandler {
+                    id: nameHover
+                    cursorShape: Qt.PointingHandCursor
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    // Left only: a right-click falls through to the row, which
+                    // copies, as it does anywhere else on it.
+                    acceptedButtons: Qt.LeftButton
+                    onClicked: row.widget.jumpTo(row.session)
+                }
+
+                PlasmaComponents3.ToolTip.text: i18n("Go to this session")
+                PlasmaComponents3.ToolTip.visible: nameHover.hovered
+                PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
             PlasmaComponents3.TextField {
@@ -302,28 +325,106 @@ Item {
             // Same reasoning as the controls: the status belongs beside the name.
             Layout.alignment: Qt.AlignTop
 
-            PlasmaComponents3.Label {
+            RowLayout {
                 Layout.alignment: Qt.AlignRight
-                text: row.session.label
-                color: row.tone
-                // Breathes with the rail by following it, rather than running a
-                // second animation of its own: two identical animations started
-                // in the same frame look synchronised right up until something
-                // restarts one of them.
-                opacity: rail.opacity
-                // Set piecemeal: assigning the whole `font` group and one of its
-                // members in the same object is a QML error.
-                font.family: Kirigami.Theme.smallFont.family
-                font.pointSize: Kirigami.Theme.smallFont.pointSize
-                font.weight: Font.DemiBold
+                spacing: Kirigami.Units.smallSpacing
+
+                PlasmaComponents3.Label {
+                    text: Sessions.age(row.session.statusUpdatedAt, row.now)
+                    font: Kirigami.Theme.smallFont
+                    color: Kirigami.Theme.disabledTextColor
+                    visible: text !== ""
+                }
+
+                PlasmaComponents3.Label {
+                    text: row.session.label
+                    color: row.tone
+                    // Breathes with the rail by following it, rather than running a
+                    // second animation of its own: two identical animations started
+                    // in the same frame look synchronised right up until something
+                    // restarts one of them.
+                    opacity: rail.opacity
+                    // Set piecemeal: assigning the whole `font` group and one of its
+                    // members in the same object is a QML error.
+                    font.family: Kirigami.Theme.smallFont.family
+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    font.weight: Font.DemiBold
+                }
             }
 
-            PlasmaComponents3.Label {
+            // The model, and how full its context is. Only once there is a reply
+            // to read them from: a session nobody has typed into has neither.
+            RowLayout {
+                id: modelLine
+                readonly property string model: Sessions.modelLabel(row.session.model)
+                readonly property int percent: Sessions.contextPercent(row.session)
                 Layout.alignment: Qt.AlignRight
-                text: Sessions.age(row.session.statusUpdatedAt, row.now)
-                font: Kirigami.Theme.smallFont
-                color: Kirigami.Theme.disabledTextColor
-                visible: text !== ""
+                spacing: Kirigami.Units.smallSpacing
+                visible: model !== ""
+
+                HoverHandler {
+                    id: modelHover
+                }
+                PlasmaComponents3.ToolTip.text: modelLine.percent < 0 ? ""
+                    : i18n("%1 of %2 tokens of context",
+                           Sessions.tokenCount(row.session.contextTokens),
+                           Sessions.tokenCount(Sessions.contextWindow(row.session.model,
+                                                                      row.session.agent,
+                                                                      row.session.contextTokens)))
+                PlasmaComponents3.ToolTip.visible: modelHover.hovered
+                                                   && PlasmaComponents3.ToolTip.text !== ""
+                PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
+
+                PlasmaComponents3.Label {
+                    text: modelLine.model
+                    font: Kirigami.Theme.smallFont
+                    color: Kirigami.Theme.disabledTextColor
+                }
+
+                // Siblings rather than parent and child, as in UsageBar: opacity
+                // multiplies down, so a fill inside the faded track would be faded too.
+                Item {
+                    visible: modelLine.percent >= 0
+                    Layout.alignment: Qt.AlignVCenter
+                    implicitWidth: Kirigami.Units.gridUnit * 3
+                    implicitHeight: Math.max(4, Math.round(Kirigami.Units.gridUnit / 3))
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: height / 2
+                        color: Kirigami.Theme.textColor
+                        opacity: 0.15
+                    }
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: parent.width * Math.max(0, modelLine.percent) / 100
+                        radius: height / 2
+                        // The accent until the context is nearly spent - past that a
+                        // turn may compact it, which is worth seeing coming.
+                        color: modelLine.percent >= 90 ? Kirigami.Theme.negativeTextColor
+                             : modelLine.percent >= 75 ? Kirigami.Theme.neutralTextColor
+                             : Kirigami.Theme.highlightColor
+                    }
+                }
+
+                PlasmaComponents3.Label {
+                    visible: modelLine.percent >= 0
+                    text: i18nc("percentage of the context window in use", "%1%", modelLine.percent)
+                    font: Kirigami.Theme.smallFont
+                    color: Kirigami.Theme.disabledTextColor
+                    // As wide as "100%" whatever it reads, so the bars line up
+                    // from one row to the next.
+                    Layout.minimumWidth: percentMetrics.width
+                    horizontalAlignment: Text.AlignRight
+
+                    TextMetrics {
+                        id: percentMetrics
+                        font: Kirigami.Theme.smallFont
+                        text: "100%"
+                    }
+                }
             }
         }
     }

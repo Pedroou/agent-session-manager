@@ -11,6 +11,16 @@
   A signal can end a session but cannot pause one, so ending is all that is
   offered.
 - **Linux only**, since it reads `/proc`. Which a Plasma panel rather implies.
+- **Jumping picks a tab only in Konsole and tmux.** Those two say which tab or
+  pane holds a process; other terminals, and VS Code, get their window brought
+  forward but stay on whichever tab they were showing. It needs KWin, which is
+  what can raise a window on Wayland.
+- **The context window is inferred from the model.** Neither transcript
+  records it. Opus 4.6 and Sonnet 4.6 run at 200K in Claude Code unless you chose
+  their `[1m]` variant, which the transcript does not say, so a 1M session on
+  one of them reads against 200K until it passes 200K. A session started with
+  `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` reads against 1M. A model the widget does
+  not know gets its name shown but no bar.
 - **Accounts are found, not watched.** The Accounts page searches when you ask
   it to, and never on its own - otherwise an account you removed from the list
   would come back by itself. A new one you create later is a search away, not

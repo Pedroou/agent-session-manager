@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# Bring a session's terminal to the front: the window it runs in, and inside it
+# the right tab (Konsole) or pane (tmux).
+#
+# A session is a process, and the thing showing it is one of that process's
+# ancestors - a terminal emulator, or VS Code for its integrated terminal and
+# its Claude Code panel. So the work is a walk up the process tree, then two
+# questions put to whatever is found there:
+#
+#   tmux     the session's own environment names its pane ($TMUX_PANE) and the
+#            server's socket ($TMUX). That pane is selected, and the walk
+#            carries on from a tmux client showing it, since the server itself
+#            has no window.
+#   Konsole  every tab is a D-Bus session whose processId is the shell it
+#            started - the ancestor directly below konsole - so the tab is the
+#            one whose processId is on the path, and its window is told to make
+#            it current.
+#
+# The window itself is raised by KWin. Nothing outside the compositor can
+# activate a window on Wayland, and a KWin script can: it is handed every
+# ancestor's pid, nearest first, and activates the first one that owns a
+# window. Several windows can share a pid (one Konsole, or one VS Code, for all
+# of them), so a hint - the tab's title, or the session's directory - picks
+# between them.
+#
+# Usage: jump-to-session <pid> <procStart>
+#
+# procStart is checked first, as it is before ending a session: a pid that has
+# been handed to another process since the list was drawn is never acted on.
+#
+# Exit status: 0 when a window was asked to come forward, 1 with a reason on
+# stderr when there was nothing to jump to.
+#
+# Environment:
+#   CLAUDE_SESSIONS_PROC  root to look for <pid>/... under, default /proc
+
+pid=$1
+want_start=$2
+proc_root=${CLAUDE_SESSIONS_PROC:-/proc}
+
+if [[ ! $pid =~ ^[0-9]+$ ]] || (( pid <= 1 )) || [[ ! $want_start =~ ^[0-9]+$ ]]; then
+    echo "jump-to-session: needs a pid and its start time" >&2
+    exit 2
+fi
+
+# Parent pid and start time, from stat: fields counted after the last ')',
+# since the name in parentheses may hold spaces of its own.
+__js_stat() {
+    local line
+    read -r line <"$proc_root/$1/stat" 2>/dev/null || return 1
+    local -a fields
+    read -r -a fields <<<"${line##*)}"
+    # After the ')' field 3 overall is fields[0], so ppid (4) is fields[1] and
+    # the start time (22) is fields[19].
+    echo "${fields[1]} ${fields[19]}"
+}
+
+read -r _ start <<<"$(__js_stat "$pid")"
+if [[ $start != "$want_start" ]]; then
+    echo "That session has ended." >&2
+    exit 1
+fi
+
+# Every ancestor, nearest first, with the name each runs as.
+ancestors_of() {
+    local p=$1 comm ppid
+    local i
+    for ((i = 0; i < 64; i++)); do
+        read -r ppid _ <<<"$(__js_stat "$p")" || return
+        [[ $ppid =~ ^[0-9]+$ ]] && (( ppid > 1 )) || return
+        read -r comm <"$proc_root/$ppid/comm" 2>/dev/null
+        echo "$ppid $comm"
+        p=$ppid
+    done
+}
+
+dbus() {
+    dbus-send --session --print-reply=literal "$@" 2>/dev/null
+}
+
+cwd=$(readlink "$proc_root/$pid/cwd" 2>/dev/null)
+hint=${cwd##*/}
+from=$pid
+
+# ─── tmux ───────────────────────────────────────────────────────────────────
+tmux_env=""
+tmux_pane=""
+while IFS= read -r -d '' kv; do
+    case $kv in
+        TMUX=*) tmux_env=${kv#TMUX=} ;;
+        TMUX_PANE=*) tmux_pane=${kv#TMUX_PANE=} ;;
+    esac
+done <"$proc_root/$pid/environ" 2>/dev/null
+
+if [[ -n $tmux_env && $tmux_pane =~ ^%[0-9]+$ ]] && command -v tmux >/dev/null; then
+    socket=${tmux_env%%,*}
+    tmux -S "$socket" select-window -t "$tmux_pane" 2>/dev/null
+    tmux -S "$socket" select-pane -t "$tmux_pane" 2>/dev/null
+    target=$(tmux -S "$socket" display-message -p -t "$tmux_pane" '#{session_name}' 2>/dev/null)
+    # A client already on the pane's session, or else the one used last - which
+    # is then switched over to it.
+    client=$(tmux -S "$socket" list-clients -t "$target" -F '#{client_pid}' 2>/dev/null | head -n 1)
+    if [[ -z $client ]]; then
+        read -r _ client tty < <(tmux -S "$socket" list-clients \
+            -F '#{client_activity} #{client_pid} #{client_tty}' 2>/dev/null | sort -n | tail -n 1)
+        [[ -n $tty ]] && tmux -S "$socket" switch-client -c "$tty" -t "$tmux_pane" 2>/dev/null
+    fi
+    if [[ $client =~ ^[0-9]+$ ]]; then
+        from=$client
+        hint=$target
+    fi
+fi
+
+# ─── the walk ───────────────────────────────────────────────────────────────
+pids=()
+konsole=""
+below=$from
+while read -r p comm; do
+    pids+=("$p")
+    if [[ -z $konsole && $comm == konsole ]]; then
+        konsole=$p
+        shell=$below
+    fi
+    below=$p
+done < <(ancestors_of "$from")
+
+if (( ${#pids[@]} == 0 )); then
+    echo "This session isn't running in a window." >&2
+    exit 1
+fi
+
+# ─── Konsole ────────────────────────────────────────────────────────────────
+if [[ -n $konsole ]]; then
+    for service in "org.kde.konsole-$konsole" org.kde.konsole; do
+        windows=$(dbus --dest="$service" /Windows org.freedesktop.DBus.Introspectable.Introspect) || continue
+        found=""
+        for window in $(grep -o '<node name="[0-9]*"' <<<"$windows" | grep -o '[0-9]*'); do
+            for session in $(dbus --dest="$service" "/Windows/$window" \
+                    org.kde.konsole.Window.sessionList | grep -o '[0-9]\+'); do
+                owner=$(dbus --dest="$service" "/Sessions/$session" \
+                    org.kde.konsole.Session.processId | grep -o '[0-9]*' | tail -n 1)
+                [[ $owner == "$shell" ]] || continue
+                dbus --dest="$service" "/Windows/$window" \
+                    org.kde.konsole.Window.setCurrentSession "int32:$session" >/dev/null
+                # The window's caption is the current tab's title.
+                title=$(dbus --dest="$service" "/Sessions/$session" \
+                    org.kde.konsole.Session.title int32:1)
+                title=${title#"${title%%[![:space:]]*}"}
+                [[ -n $title ]] && hint=$title
+                found=1
+                break 2
+            done
+        done
+        [[ -n $found ]] && break
+    done
+fi
+
+# ─── the window ─────────────────────────────────────────────────────────────
+# Handed to the script as JSON literals, so nothing in a title or a directory
+# name can be read as code.
+json_string() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/ }
+    s=${s//$'\t'/ }
+    printf '"%s"' "$s"
+}
+
+dir=${XDG_RUNTIME_DIR:-/tmp}
+name="agent-session-manager-jump-$$"
+script="$dir/$name.js"
+trap 'rm -f "$script"' EXIT
+
+pid_list=$(IFS=,; echo "${pids[*]}")
+cat >"$script" <<EOF
+const pids = [$pid_list];
+const hint = $(json_string "$hint");
+const all = workspace.windowList ? workspace.windowList() : workspace.stackingOrder;
+let chosen = null;
+for (const p of pids) {
+    const mine = all.filter(w => w.pid === p && w.normalWindow);
+    if (mine.length === 0) continue;
+    chosen = (hint && mine.find(w => w.caption.indexOf(hint) !== -1)) || mine[0];
+    break;
+}
+if (chosen) {
+    if (chosen.minimized) chosen.minimized = false;
+    workspace.activeWindow = chosen;
+}
+EOF
+
+dbus --dest=org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript "string:$name" >/dev/null
+id=$(dbus --dest=org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript \
+    "string:$script" "string:$name" | grep -o -- '-\?[0-9]*' | tail -n 1)
+if [[ ! $id =~ ^[0-9]+$ ]]; then
+    echo "Couldn't ask KWin to bring the window forward." >&2
+    exit 1
+fi
+dbus --dest=org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null
+dbus --dest=org.kde.KWin /Scripting org.kde.kwin.Scripting.unloadScript "string:$name" >/dev/null
+exit 0

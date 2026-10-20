@@ -393,6 +393,35 @@ PlasmoidItem {
         }
     }
 
+    // Bringing a session's terminal forward is jump-to-session's job; this only
+    // starts it, and says why when there was nothing to bring forward. Success
+    // needs no word: the window it raised takes the focus, and the popup closes
+    // on its own as it loses it (or stays, if it is pinned).
+    readonly property string jumpPath: {
+        var url = Qt.resolvedUrl("../scripts/jump-to-session").toString()
+        return url.replace(/^file:\/\//, "")
+    }
+
+    Plasma5Support.DataSource {
+        id: jumper
+        engine: "executable"
+        connectedSources: []
+        onNewData: function (source, data) {
+            disconnectSource(source)
+            if (data["exit code"] !== 0) {
+                root.notify((data["stderr"] || "").trim()
+                            || i18n("Couldn't bring that session forward."), "dialog-information-symbolic")
+            }
+        }
+    }
+
+    function jumpTo(session) {
+        var args = Sessions.jumpArgs(session)
+        if (args !== "") {
+            jumper.connectSource("timeout -k 2 10 " + shellQuote(jumpPath) + " " + args)
+        }
+    }
+
     // QML has no clipboard of its own; a TextEdit does, and this is the usual way
     // to borrow it.
     TextEdit {
@@ -414,7 +443,14 @@ PlasmoidItem {
 
     function copyToClipboard(text, what) {
         clipboard.put(text)
-        copyNotice = (what && what !== "") ? i18n("%1 copied", what) : i18n("Copied")
+        notify((what && what !== "") ? i18n("%1 copied", what) : i18n("Copied"), "edit-copy-symbolic")
+    }
+
+    property string noticeIcon: "edit-copy-symbolic"
+
+    function notify(text, icon) {
+        copyNotice = text
+        noticeIcon = icon
         copyNoticeTimer.restart()
     }
 

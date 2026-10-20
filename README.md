@@ -38,6 +38,10 @@ session is doing, so a glance is enough.
 - **No setup.** It reads what each tool already writes: Claude Code's session
   registry, and the transcript every OMP session keeps open. No hooks, no
   wrappers, no config files to place.
+- **Jump to any session.** Click its name and its terminal comes forward - on
+  the right tab in Konsole, the right pane in tmux.
+- **Model and context at a glance** - which model each session is on, and how
+  full its context window is.
 - **A popup with the details** - directory, git repository and branch, uptime,
   session id, pid. Click any value to copy it.
 - **Your plan usage**, per Claude Code account, for whichever limit you care
@@ -74,8 +78,14 @@ and then red as the limit fills.
 ## The popup
 
 Click the widget for the full list, sorted so whatever is blocked sits at the
-top. Click a row to open its details; click any value to copy it. Right-click
-copies the whole row, or the command to drop back into that session.
+top. Click a session's name to go to it: the window it runs in comes forward,
+on the right Konsole tab or tmux pane. Click anywhere else on the row to open
+its details, and any value to copy it. Right-click copies the whole row, or the
+command to drop back into that session.
+
+Under each state sits the model the session is on and a bar for how full its
+context window is, amber past three quarters and red past 90%. Hover it for the
+token count.
 
 <div align="center">
 <img src="docs/screenshots/copy.gif" alt="A session opened, one of its values clicked to copy it, then the whole row right-clicked" width="660">
@@ -124,8 +134,8 @@ cd agent-session-manager
 ./install.sh
 ```
 
-Then right-click your panel → **Add or Manage Widgets…** → search **Claude
-Sessions**.
+Then right-click your panel → **Add or Manage Widgets…** → search **Agent
+Session Manager**.
 
 Upgrading while the widget is already on the panel needs a shell restart, since
 Plasma caches applet QML. `install.sh` prints the command.
@@ -246,8 +256,8 @@ a running Plasma shell. The collector suite is itself written in fish, so
 running it needs fish; the widget does not:
 
 ```fish
-fish --no-config test/test-collectors.fish   # 135 assertions
-node --test test/sessions.test.js            # 35
+fish --no-config test/test-collectors.fish   # 140 assertions
+node --test test/sessions.test.js            # 39
 node --test test/usage.test.js               # 29
 ```
 
