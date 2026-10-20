@@ -213,6 +213,20 @@ __cs_running() {
     return 1
 }
 
+# A Claude Code session's transcript: <profile>/projects/<project>/<id>.jsonl.
+# Sets __cs_cc_transcript, empty when there is none yet.
+__cs_cc_transcript_of() {
+    local profile_dir=$1 session_id=$2 t
+    __cs_cc_transcript=
+    [[ -n $session_id ]] || return
+    for t in "$profile_dir"/projects/*/"$session_id".jsonl; do
+        if [[ -f $t ]]; then
+            __cs_cc_transcript=$t
+            return
+        fi
+    done
+}
+
 # Did this session's last turn end in an API error?
 #
 # The registry has no error state - a session that fails goes back to `idle` -
@@ -224,19 +238,10 @@ __cs_running() {
 #
 # Sets __cs_message to the message, and returns 1 when the last turn was fine.
 __cs_error() {
-    local profile_dir=$1 session_id=$2
+    local transcript=$1
     __cs_message=
-    [[ -n $session_id ]] || return 1
-    [[ -z $CLAUDE_SESSIONS_NO_ERROR ]] || return 1
-
-    local t transcript=
-    for t in "$profile_dir"/projects/*/"$session_id".jsonl; do
-        if [[ -f $t ]]; then
-            transcript=$t
-            break
-        fi
-    done
     [[ -n $transcript ]] || return 1
+    [[ -z $CLAUDE_SESSIONS_NO_ERROR ]] || return 1
 
     local tail_text
     tail_text=$(tail -c 32768 -- "$transcript" 2>/dev/null)
@@ -512,6 +517,7 @@ __cs_start_ticks() {
 bodies=()
 extras=() # seven per entry in $bodies, in step with it: the fields worked out here
 present=()
+cc_transcripts=() # one per Claude Code entry in $bodies: its transcript, or ""
 
 re_proc_start='"procStart"[[:space:]]*:[[:space:]]*"([^"]*)"'
 re_status='"status"[[:space:]]*:[[:space:]]*"([^"]*)"'
@@ -560,6 +566,8 @@ for i in "${!profile_dirs[@]}"; do
         [[ $body =~ $re_session_id ]] && session_id=${BASH_REMATCH[1]}
         [[ $body =~ $re_cwd ]] && cwd=${BASH_REMATCH[1]}
 
+        __cs_cc_transcript_of "$dir" "$session_id"
+
         # Only busy sessions can be running a command, and only idle ones can be
         # sitting on a failed turn - so neither check runs where it can't apply.
         overlay=
@@ -570,7 +578,7 @@ for i in "${!profile_dirs[@]}"; do
                 detail=$__cs_command
             fi
         elif [[ $status_now == idle ]]; then
-            if __cs_error "$dir" "$session_id"; then
+            if __cs_error "$__cs_cc_transcript"; then
                 overlay=error
                 detail=$__cs_message
             fi
@@ -579,6 +587,7 @@ for i in "${!profile_dirs[@]}"; do
         __cs_git "$cwd"
 
         bodies+=("$body")
+        cc_transcripts+=("$__cs_cc_transcript")
         # Every value carries a leading ":" because jq still reads an argument
         # beginning with "-" as an option, even after --args - and a command line
         # or an error message can quite reasonably start with one. jq strips it.
@@ -586,6 +595,46 @@ for i in "${!profile_dirs[@]}"; do
             ":$dir" ":$is_default")
     done
 done
+
+# The model each Claude Code session is on, and how much of its context the last
+# turn used: both on the newest assistant entry of the main thread, which
+# carries the model id and the request's token counts. A subagent's entries and
+# the ones Claude Code writes itself (model "<synthetic>", for an API error) say
+# nothing about the session's own context, so they are passed over.
+#
+# `tac` reads a transcript from its end and grep stops at the fourth assistant
+# line, so the cost does not grow with the length of the conversation; all the
+# sessions then share one jq. The answers come back as a JSON array in the
+# order of $bodies, with null for any entry that is not a Claude Code session.
+contexts_json='[]'
+if ((${#cc_transcripts[@]} > 0)); then
+    mapfile -t cc_contexts < <(
+        for t in "${cc_transcripts[@]}"; do
+            printf '\x1e\n'
+            [[ -n $t ]] || continue
+            tac -- "$t" 2>/dev/null | grep -a -m 4 -F '"type":"assistant"'
+        done | jq -ncR '
+            reduce inputs as $line ([];
+                if $line == "\u001e" then . + [[]] else .[-1] += [$line] end)
+            | .[]
+            | ([.[] | try fromjson catch null | objects
+                | select(.type == "assistant" and .isSidechain != true
+                         and (.message.usage | type) == "object"
+                         and ((.message.model // "") | startswith("<") | not))]
+               | first) as $m
+            | if $m == null then null else
+                {model: ($m.message.model // ""),
+                 contextTokens: (($m.message.usage.input_tokens // 0)
+                                 + ($m.message.usage.cache_creation_input_tokens // 0)
+                                 + ($m.message.usage.cache_read_input_tokens // 0))}
+              end' 2>/dev/null)
+    # Paired by position, so a jq that fell over halfway leaves every session
+    # without one rather than shifting them onto the wrong sessions.
+    if ((${#cc_contexts[@]} == ${#cc_transcripts[@]})); then
+        printf -v joined '%s,' "${cc_contexts[@]}"
+        contexts_json="[${joined%,}]"
+    fi
+fi
 
 # OMP sessions join the same two lists, so they sort and count with the rest.
 # Each transcript's tail becomes a registry-shaped record - `status` one of
@@ -709,10 +758,11 @@ if ((${#present[@]} > 0)); then
 fi
 
 # Record bodies arrive on stdin, one JSON object per record, in the same order as
-# $extras - so a record's position is enough to pair it with what was worked out
-# for it above.
+# $extras and $contexts - so a record's position is enough to pair it with what
+# was worked out for it above.
 printf '%s\n' "${bodies[@]}" | jq -n \
     --argjson now "$now" \
+    --argjson contexts "$contexts_json" \
     --argjson profiles "$present_json" '
     def statusLabel($s):
         {waiting: "Waiting", running: "Running", busy: "Working",
@@ -740,6 +790,7 @@ printf '%s\n' "${bodies[@]}" | jq -n \
     [inputs] | to_entries | map(
         .value as $r
         | extras(.key) as $x
+        | ($contexts[.key] // {}) as $c
         # The two states worked out from /proc and the transcript stand in for the
         # registry status; everything downstream treats them alike.
         | (if ($x.overlay // "") != "" then $x.overlay else ($r.status // "") end) as $status
@@ -775,6 +826,11 @@ printf '%s\n' "${bodies[@]}" | jq -n \
             startedAt:       ($r.startedAt // 0),
             statusUpdatedAt: ($r.statusUpdatedAt // $r.updatedAt // 0),
             version:         ($r.version // ""),
+            # The model as its id, and the tokens the last request carried; the
+            # widget turns those into a name and a share of the context window.
+            # OMP records bring their own, Claude Code ones come from $contexts.
+            model:           ($r.model // $c.model // ""),
+            contextTokens:   ($r.contextTokens // $c.contextTokens // 0),
             rank:            rank($state)
         }
     )

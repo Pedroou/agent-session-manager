@@ -339,3 +339,46 @@ test("copying an expanded session gives you everything on screen", () => {
     assert.ok(lines.includes("Repository: checkout-flow/main"))
     assert.ok(lines.includes("Session: abc-123"))
 })
+
+test("model ids read the way people say them", () => {
+    assert.equal(Sessions.modelLabel("claude-opus-5-5"), "Opus 5.5")
+    assert.equal(Sessions.modelLabel("anthropic/claude-fable-5-1"), "Fable 5.1")
+    assert.equal(Sessions.modelLabel("claude-fable-5"), "Fable 5")
+    assert.equal(Sessions.modelLabel("claude-sonnet-4-5-20250929"), "Sonnet 4.5")
+    assert.equal(Sessions.modelLabel("claude-3-5-haiku-20241022"), "Haiku 3.5")
+    assert.equal(Sessions.modelLabel("claude-opus-4-6[1m]"), "Opus 4.6")
+    assert.equal(Sessions.modelLabel("gpt-5.1-codex"), "gpt-5.1-codex")
+    assert.equal(Sessions.modelLabel("<synthetic>"), "")
+    assert.equal(Sessions.modelLabel(""), "")
+})
+
+test("the context window follows the model, and the tool where they differ", () => {
+    assert.equal(Sessions.contextWindow("claude-opus-5-5", "claude", 0), 1000000)
+    assert.equal(Sessions.contextWindow("claude-opus-4-7", "claude", 0), 1000000)
+    assert.equal(Sessions.contextWindow("claude-sonnet-4-5", "claude", 0), 200000)
+    assert.equal(Sessions.contextWindow("claude-haiku-4-5", "claude", 0), 200000)
+    assert.equal(Sessions.contextWindow("claude-haiku-5-5", "claude", 0), 1000000)
+    // Opus 4.6 is 1M in Claude Code only through a [1m] variant the transcript
+    // does not keep; OMP gives it 1M by default.
+    assert.equal(Sessions.contextWindow("claude-opus-4-6", "claude", 0), 200000)
+    assert.equal(Sessions.contextWindow("claude-opus-4-6", "omp", 0), 1000000)
+    assert.equal(Sessions.contextWindow("claude-opus-4-6[1m]", "claude", 0), 1000000)
+    // Holding more than 200K proves the 1M variant.
+    assert.equal(Sessions.contextWindow("claude-opus-4-6", "claude", 250000), 1000000)
+    assert.equal(Sessions.contextWindow("gpt-5.1-codex", "omp", 50000), 0)
+})
+
+test("context fill is a percentage, or nothing when it cannot be known", () => {
+    assert.equal(Sessions.contextPercent(session({model: "claude-opus-5-5", contextTokens: 340000})), 34)
+    assert.equal(Sessions.contextPercent(session({model: "claude-sonnet-4-5", contextTokens: 50000})), 25)
+    assert.equal(Sessions.contextPercent(session({model: "claude-opus-5-5", contextTokens: 0})), -1)
+    assert.equal(Sessions.contextPercent(session({model: "gpt-5.1-codex", contextTokens: 9000})), -1)
+    assert.equal(Sessions.contextPercent(session({})), -1)
+})
+
+test("token counts are short", () => {
+    assert.equal(Sessions.tokenCount(850), "850")
+    assert.equal(Sessions.tokenCount(224319), "224K")
+    assert.equal(Sessions.tokenCount(999700), "1M")
+    assert.equal(Sessions.tokenCount(1000000), "1M")
+})

@@ -189,6 +189,92 @@ function context(session, showProfile, censored) {
     return bits.join(" - ")
 }
 
+// A model id as a person would say it: "claude-opus-5-5" is "Opus 5.5",
+// "claude-3-5-haiku-20241022" is "Haiku 3.5". OMP qualifies ids with their
+// provider ("anthropic/claude-opus-5-5"), and Claude Code can carry a "[1m]"
+// tag; neither is part of the name. An id that is not a Claude model is shown
+// as it is - it is already what that provider calls it.
+function parseModel(id) {
+    var bare = String(id || "")
+    bare = bare.slice(bare.lastIndexOf("/") + 1)
+    bare = bare.replace(/\[1m\]$/i, "").replace(/[-@][0-9]{8}$/, "")
+    var m = /^claude-(opus|sonnet|haiku|fable|mythos)-([0-9]+)(?:-([0-9]+))?$/.exec(bare)
+    if (!m) {
+        // The ids before Claude 4 put the version first.
+        var old = /^claude-([0-9]+)(?:-([0-9]+))?-(opus|sonnet|haiku)$/.exec(bare)
+        if (old) {
+            m = [old[0], old[3], old[1], old[2]]
+        }
+    }
+    if (!m) {
+        return {family: "", major: 0, minor: 0, bare: bare}
+    }
+    return {family: m[1], major: parseInt(m[2], 10), minor: m[3] ? parseInt(m[3], 10) : 0,
+            bare: bare}
+}
+
+function modelLabel(id) {
+    var p = parseModel(id)
+    if (!p.family) {
+        // "<synthetic>" is what Claude Code records for a message it wrote
+        // itself, such as an API error - no model at all.
+        return /^<.*>$/.test(p.bare) ? "" : p.bare
+    }
+    var version = p.minor ? p.major + "." + p.minor : String(p.major)
+    return p.family.charAt(0).toUpperCase() + p.family.slice(1) + " " + version
+}
+
+// How many tokens a session's model can hold, or 0 when there is no telling.
+//
+// Neither transcript records it, so it follows the model, the way both tools
+// size it: Fable, Sonnet 5 and later, Haiku 5.5 and Opus 4.7 and later have a
+// native 1M window; Opus 4.6 and Sonnet 4.6 reach 1M only when asked for, which
+// Claude Code does through a "[1m]" model variant that the transcript does not
+// keep, and OMP does by default. Everything older is 200K. A session already
+// holding more than 200K is on the 1M window whatever its id said.
+function contextWindow(id, agent, tokens) {
+    var p = parseModel(id)
+    var version = p.major * 100 + p.minor
+    var million = 1000000
+    var window
+    if (/\[1m\]$/i.test(String(id || ""))) {
+        window = million
+    } else if (p.family === "fable" || p.family === "mythos") {
+        window = million
+    } else if (p.family === "opus") {
+        window = version >= 407 || (version === 406 && agent === "omp") ? million : 200000
+    } else if (p.family === "sonnet") {
+        window = version >= 500 || (version === 406 && agent === "omp") ? million : 200000
+    } else if (p.family === "haiku") {
+        window = version >= 505 ? million : 200000
+    } else {
+        return 0
+    }
+    return tokens > window ? million : window
+}
+
+// How full a session's context is, 0-100, or -1 when that cannot be said: no
+// reply yet, or a model whose window is not known.
+function contextPercent(session) {
+    var tokens = session ? Number(session.contextTokens) || 0 : 0
+    var window = session ? contextWindow(session.model, session.agent, tokens) : 0
+    if (tokens <= 0 || window <= 0) {
+        return -1
+    }
+    return Math.min(100, Math.round(tokens * 100 / window))
+}
+
+// "850", "224K", "1M", "1.2M".
+function tokenCount(n) {
+    if (n < 1000) {
+        return String(n)
+    }
+    if (n < 999500) {
+        return Math.round(n / 1000) + "K"
+    }
+    return (Math.round(n / 100000) / 10) + "M"
+}
+
 function label(key, settings, shortKey) {
     return (settings && settings.shortLabels && shortKey) ? shortKey : key
 }
@@ -290,16 +376,34 @@ function resumeCommand(session) {
 // Both values are digits by the time they are spliced in, so there is nothing
 // in them a shell could read as anything but a number.
 function endCommand(session) {
-    var pid = String(session && session.pid !== undefined ? session.pid : "")
-    var start = String(session && session.procStart !== undefined ? session.procStart : "")
-    if (!/^[0-9]+$/.test(pid) || parseInt(pid, 10) <= 1 || !/^[0-9]+$/.test(start)) {
+    var args = processArgs(session)
+    if (args === null) {
         return ""
     }
     // Field 22 of /proc/<pid>/stat is the start time; field 2 is the name in
     // parentheses and may contain spaces, so everything up to the last ") " is
     // dropped and it becomes field 20.
-    return "read -r l < /proc/" + pid + "/stat && set -- ${l##*) } && [ \"${20}\" = \""
-           + start + "\" ] && kill -TERM " + pid
+    return "read -r l < /proc/" + args.pid + "/stat && set -- ${l##*) } && [ \"${20}\" = \""
+           + args.start + "\" ] && kill -TERM " + args.pid
+}
+
+// A session's pid and start time, as plain digits, or null when either is not
+// safe to put on a command line. Shared by ending a session and jumping to it,
+// which both act on a pid and both check the start time again before they do.
+function processArgs(session) {
+    var pid = String(session && session.pid !== undefined ? session.pid : "")
+    var start = String(session && session.procStart !== undefined ? session.procStart : "")
+    if (!/^[0-9]+$/.test(pid) || parseInt(pid, 10) <= 1 || !/^[0-9]+$/.test(start)) {
+        return null
+    }
+    return {pid: pid, start: start}
+}
+
+// The arguments for scripts/jump-to-session, or "" when the session cannot be
+// pointed at safely.
+function jumpArgs(session) {
+    var args = processArgs(session)
+    return args === null ? "" : args.pid + " " + args.start
 }
 
 function shellQuote(text) {
@@ -342,9 +446,14 @@ if (typeof module !== "undefined" && module.exports) {
         countsFor: countsFor,
         displayName: displayName,
         context: context,
+        modelLabel: modelLabel,
+        contextWindow: contextWindow,
+        contextPercent: contextPercent,
+        tokenCount: tokenCount,
         detailRows: detailRows,
         resumeCommand: resumeCommand,
         endCommand: endCommand,
+        jumpArgs: jumpArgs,
         shellQuote: shellQuote,
         detailsAsText: detailsAsText
     }

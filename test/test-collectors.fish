@@ -856,6 +856,44 @@ set -e CLAUDE_PROFILES
 
 
 echo
+echo "═══ Task 38: each session says its model and how full its context is ═══"
+setup
+# The newest main-thread reply counts; a subagent's, and the entry Claude Code
+# writes itself for an API error, come after it and say nothing about the session.
+function cc_reply -a model input created read
+    jq -nc --arg m $model --argjson i $input --argjson c $created --argjson r $read '
+        {type: "assistant", isSidechain: false,
+         message: {model: $m, role: "assistant", content: [{type: "text", text: "ok"}],
+                   usage: {input_tokens: $i, cache_creation_input_tokens: $c,
+                           cache_read_input_tokens: $r, output_tokens: 99}}}'
+end
+record work 4095 idle modelled /home/u/m
+fake_proc 4095 409500
+fake_transcript sid-4095 (cc_reply claude-opus-4-5 10 20 1000) (cc_reply claude-opus-5-5 2 600 113000) \
+    (cc_reply claude-haiku-5-5 1 1 1 | jq -c '.isSidechain = true') \
+    (api_error "overloaded" | jq -c '.message.model = "<synthetic>"')
+record work 4096 busy fresh /home/u/f
+fake_proc 4096 409600
+fake_omp 4380 12350 $ROOT/code/omp
+omp_transcript (omp_file 01a1-ctx) "" \
+    (jq -nc '{type: "model_change", model: "anthropic/claude-opus-4-8"}') \
+    (omp_turn stop | jq -c '.message += {model: "claude-opus-4-8",
+                                         usage: {input: 5, cacheRead: 40000, cacheWrite: 300, output: 70}}') \
+    (jq -nc '{type: "model_change", model: "anthropic/claude-fable-5-1"}')
+omp_holds 4380 9 (omp_file 01a1-ctx)
+set out (collect)
+check "the model of the newest main-thread reply" claude-opus-5-5 \
+    (echo $out | jq -r '.sessions[] | select(.pid==4095) | .model')
+check "its prompt as sent, cached or not, is the context in use" 113602 \
+    (echo $out | jq -r '.sessions[] | select(.pid==4095) | .contextTokens')
+check "a session with no reply yet has neither" ":0" \
+    (echo $out | jq -r '.sessions[] | select(.pid==4096) | "\(.model):\(.contextTokens)"')
+check "an OMP session names the model it switched to since" anthropic/claude-fable-5-1 \
+    (echo $out | jq -r '.sessions[] | select(.pid==4380) | .model')
+check "and keeps the tokens of its last reply" 40305 \
+    (echo $out | jq -r '.sessions[] | select(.pid==4380) | .contextTokens')
+
+echo
 echo "═══ Tripwire: the real session registry was untouched ═══"
 set -g HOME $REAL_HOME
 set -l leaked (__registry_records $REAL_HOME | string match -r '40[0-9]{2}\.json' | string join ' ')

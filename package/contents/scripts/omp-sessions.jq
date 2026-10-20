@@ -83,6 +83,23 @@ def title($entries):
     ([$entries[] | select(.type == "title" or .type == "session") | .title | strings] | first // "")
     | sub("^[\\x{E000}-\\x{F8FF}\\x{F0000}-\\x{10FFFD}]+\\s*"; "");
 
+# The model the session is on, and the tokens its last request carried - the
+# prompt as sent, cached or not, which is what fills the context window. The
+# model is the last one named, by a reply or by a switch made since; the tokens
+# come from the last reply, since a switch has not sent anything yet.
+def model($entries):
+    [$entries[]
+     | if .type == "message" and .message.role == "assistant"
+          and (.message.usage | type) == "object" then
+           {model: .message.model, usage: .message.usage}
+       elif .type == "model_change" then {model: .model}
+       else empty end] as $named
+    | ([$named[] | select(.usage != null)] | last) as $reply
+    | {model: (([$named[] | .model | strings] | last) // ""),
+       contextTokens: (if $reply == null then 0
+                       else ($reply.usage.input // 0) + ($reply.usage.cacheRead // 0)
+                            + ($reply.usage.cacheWrite // 0) end)};
+
 reduce inputs as $line ([];
     if $line == "\u001e" then . + [[]] else .[-1] += [$line] end)
 | to_entries[]
@@ -90,6 +107,7 @@ reduce inputs as $line ([];
 | [.value[] | try fromjson catch null | objects] as $entries
 | state($entries) as $s
 | title($entries) as $title
+| model($entries) as $model
 | ((arg($i * 7 + 3) | tonumber?) // 0) as $startedAt
 | {
     pid:             (arg($i * 7) | tonumber),
@@ -104,5 +122,7 @@ reduce inputs as $line ([];
     agent:           "omp",
     sessionFile:     arg($i * 7 + 4),
     ompProfile:      arg($i * 7 + 5),
-    procStart:       arg($i * 7 + 6)
+    procStart:       arg($i * 7 + 6),
+    model:           $model.model,
+    contextTokens:   $model.contextTokens
   }
