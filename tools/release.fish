@@ -9,7 +9,7 @@
 # way. So a store upload whose KPlugin.Version was not bumped installs nothing,
 # tells every user it worked, and leaves them on the old build with no error
 # anywhere. That is not a mistake you can catch by testing locally, because
-# install.fish uses --upgrade, which replaces files regardless.
+# install.sh uses --upgrade, which replaces files regardless.
 #
 # Usage: release.fish <version>        e.g. release.fish 1.1.0
 

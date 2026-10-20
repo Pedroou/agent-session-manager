@@ -8,7 +8,7 @@
 
 <p>
 <img alt="KDE Plasma 6" src="https://img.shields.io/badge/KDE_Plasma-6-1d99f3?style=flat-square&logo=kde&logoColor=white&labelColor=2d333b">
-<img alt="QML and fish" src="https://img.shields.io/badge/QML_%2B_fish-41cd52?style=flat-square&logo=qt&logoColor=white&labelColor=2d333b">
+<img alt="QML and bash" src="https://img.shields.io/badge/QML_%2B_bash-41cd52?style=flat-square&logo=qt&logoColor=white&labelColor=2d333b">
 <a href="https://github.com/Pedroou/agent-session-manager/actions/workflows/tests.yml"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/Pedroou/agent-session-manager/tests.yml?branch=main&style=flat-square&label=tests&labelColor=2d333b"></a>
 <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue?style=flat-square&labelColor=2d333b"></a>
 </p>
@@ -114,21 +114,21 @@ signed in at all.
 
 ## Install
 
-Requires **Plasma 6**, **fish 3.5+**, `jq`, `curl`, `timeout` and `kpackagetool6`.
-`install.fish` checks for all of them. OMP's usage rows also need a systemd user
+Requires **Plasma 6**, `bash`, `jq`, `curl`, `timeout` and `kpackagetool6`.
+`install.sh` checks for all of them. OMP's usage rows also need a systemd user
 session, which is what keeps `omp` to its memory cap.
 
-```fish
+```sh
 git clone https://github.com/Pedroou/agent-session-manager
 cd agent-session-manager
-./install.fish
+./install.sh
 ```
 
 Then right-click your panel → **Add or Manage Widgets…** → search **Claude
 Sessions**.
 
 Upgrading while the widget is already on the panel needs a shell restart, since
-Plasma caches applet QML. `install.fish` prints the command.
+Plasma caches applet QML. `install.sh` prints the command.
 
 ## Configuration
 
@@ -240,9 +240,10 @@ a systemd user session to enforce that it is not run at all, and the row says
 so. A failed run keeps the last reading on screen, as a failed Claude Code fetch
 does.
 
-Everything with a decision in it lives in two fish collectors, the two jq
+Everything with a decision in it lives in two bash collectors, the two jq
 programs that read OMP, and two Qt-free JavaScript files - all testable without
-a running Plasma shell:
+a running Plasma shell. The collector suite is itself written in fish, so
+running it needs fish; the widget does not:
 
 ```fish
 fish --no-config test/test-collectors.fish   # 135 assertions
@@ -250,7 +251,7 @@ node --test test/sessions.test.js            # 35
 node --test test/usage.test.js               # 29
 ```
 
-The fish suite builds a throwaway `$HOME`, a throwaway `/proc` **and** throwaway
+The collector suite builds a throwaway `$HOME`, a throwaway `/proc` **and** throwaway
 transcripts, then runs the real collectors against them - so a recycled pid, a
 half-written record, an MCP child that is not a command, a command starting
 with `--` that `jq` would otherwise eat as a flag, and an OMP helper process

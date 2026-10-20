@@ -1,4 +1,4 @@
-#!/usr/bin/env -S fish --no-config
+#!/usr/bin/env bash
 # Look for Claude Code config directories under a path, one level down.
 #
 # There is no standard place to keep a second account: $CLAUDE_CONFIG_DIR takes
@@ -16,49 +16,54 @@
 #
 # Usage: claude-find-profiles [path]
 
-set -l root $HOME
-test (count $argv) -gt 0 -a -n "$argv[1]"; and set root $argv[1]
-set root (string replace -r '^~' $HOME -- $root)
+root=$HOME
+[[ $# -gt 0 && -n $1 ]] && root=$1
+[[ $root == '~'* ]] && root=$HOME${root:1}
 # A trailing slash would make the home directory fail the comparison below.
-set root (string replace -r '(.)/+$' '$1' -- $root)
+while [[ $root == ?*/ ]]; do root=${root%/}; done
 
 # Claude Code has written one of its own two files into every directory it
 # owns. Both names are specific enough not to be anything else, and between them
 # they cover a directory that has been logged into and one that has only been
 # run.
-function __cfp_is_profile -a dir
+__cfp_is_profile() {
+    local dir=$1
     # Never the home directory itself. The stock profile keeps its .claude.json
     # *beside* ~/.claude rather than inside it, so home carries the marker
     # without being an account - and searching home, which is the default, would
     # otherwise turn up home.
-    test "$dir" = "$HOME"; and return 1
-    test -f $dir/.claude.json -o -f $dir/.credentials.json
-end
+    [[ $dir == "$HOME" ]] && return 1
+    [[ -f $dir/.claude.json || -f $dir/.credentials.json ]]
+}
 
-set -l candidates
-if __cfp_is_profile $root
-    set candidates $root
+candidates=()
+if __cfp_is_profile "$root"; then
+    candidates=("$root")
 else
-    for entry in (find $root -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
-        __cfp_is_profile $entry; and set -a candidates $entry
-    end
-end
+    mapfile -t entries < <(find "$root" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+    for entry in "${entries[@]}"; do
+        __cfp_is_profile "$entry" && candidates+=("$entry")
+    done
+fi
 
-set -l parts
-for entry in $candidates
+parts=()
+for entry in "${candidates[@]}"; do
     # ".claude-personal" reads better as "personal" once it is sitting in a list
     # of accounts; the stock directory has nothing left after the same trim, and
     # "default" says what it is.
-    set -l name (string replace -r '^\.+' '' -- (path basename $entry))
-    set -l trimmed (string replace -r '^claude[-_.]?' '' -- $name)
-    test -n "$trimmed"; and set name $trimmed
-    test "$entry" = "$HOME/.claude"; and set name default
+    name=$entry
+    [[ $name == / ]] || name=${name##*/}
+    name=${name#"${name%%[!.]*}"}
+    trimmed=$name
+    [[ $trimmed =~ ^claude[-_.]? ]] && trimmed=${trimmed:${#BASH_REMATCH[0]}}
+    [[ -n $trimmed ]] && name=$trimmed
+    [[ $entry == "$HOME/.claude" ]] && name=default
 
-    set -a parts (jq -n -c --arg dir "$entry" --arg name "$name" '{dir: $dir, name: $name}')
-end
+    parts+=("$(jq -n -c --arg dir "$entry" --arg name "$name" '{dir: $dir, name: $name}')")
+done
 
-if test (count $parts) -eq 0
+if ((${#parts[@]} == 0)); then
     echo '[]'
 else
-    printf '%s\n' $parts | jq -s -c '.'
-end
+    printf '%s\n' "${parts[@]}" | jq -s -c '.'
+fi

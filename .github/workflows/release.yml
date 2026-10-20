@@ -37,7 +37,7 @@ jobs:
           echo "ARTIFACT=$artifact" >> "$GITHUB_ENV"
 
       # gh is preinstalled on the runner, so this needs no third-party action -
-      # which suits a project whose whole dependency list is fish, jq and curl.
+      # which suits a project whose whole dependency list is bash, jq and curl.
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S fish --no-config
+#!/usr/bin/env bash
 # Print one JSON document describing every agent session running right now:
 # Claude Code, across every configured profile, and OMP (oh-my-pi).
 #
@@ -21,9 +21,14 @@
 # session is doing (see the OMP section below).
 #
 # The widget polls this, so it stays cheap: record bodies and git metadata are
-# read with fish builtins, and the whole batch is handed to a single jq. Only
+# read with bash builtins, and the whole batch is handed to a single jq. Only
 # idle sessions pay for a transcript read, and only busy ones for a /proc walk.
-# Each OMP session costs one `tail`, and all of them share one more jq.
+# Each OMP session costs one `tail`, and all of them share one `realpath` and
+# one more jq.
+#
+# The helpers below hand their answers back in global variables rather than on
+# stdout: capturing a function's output with $(...) would fork a subshell for
+# every session on every poll.
 #
 # Environment:
 #   CLAUDE_PROFILES          JSON array of {name, dir} to read, in order
@@ -34,23 +39,32 @@
 #
 # Exit status is 0 whenever a document was printed, including "nothing running".
 
+# An unmatched glob expands to nothing, rather than to itself.
+shopt -s nullglob
+
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Agent Session Manager needs jq. Install the jq package and it will pick it up on the next refresh." >&2
+    exit 1
+fi
+
 # Ceilings, inherited by every process this starts. A run takes about 10 MB and
 # a tenth of a CPU second, and still completes under a 128 MB address-space
 # limit; these sit far above that, so they never bind on a run that is working,
 # and stop one that is not - whatever it hit - long before the machine notices.
 # Only ever lowered: a tighter limit already in force is kept, and a limit that
 # cannot be set is simply not set.
-function __cs_cap -a flag value
-    set -l now (ulimit -S $flag)
-    if test "$now" = unlimited; or test "$now" -gt $value 2>/dev/null
-        ulimit -S $flag $value 2>/dev/null
-    end
-end
+__cs_cap() {
+    local flag=$1 value=$2 now
+    now=$(ulimit -S "$flag")
+    if [[ $now == unlimited ]] || { [[ $now =~ ^[0-9]+$ ]] && ((now > value)); }; then
+        ulimit -S "$flag" "$value" 2>/dev/null
+    fi
+}
 __cs_cap -v 1048576 # 1 GiB of address space per process
 __cs_cap -t 30 # 30 seconds of CPU per process
 
-set -l proc_root /proc
-test -n "$CLAUDE_SESSIONS_PROC"; and set proc_root $CLAUDE_SESSIONS_PROC
+proc_root=/proc
+[[ -n $CLAUDE_SESSIONS_PROC ]] && proc_root=$CLAUDE_SESSIONS_PROC
 
 # Which config directories to read, and what to call each one.
 #
@@ -58,48 +72,87 @@ test -n "$CLAUDE_SESSIONS_PROC"; and set proc_root $CLAUDE_SESSIONS_PROC
 # takes any path at all - so there is no set of directories to hardcode, and the
 # widget hands over the list the user configured. Derived per run, never cached
 # at load time: the test suite moves $HOME.
-set -l profile_names
-set -l profile_dirs
-if test -n "$CLAUDE_PROFILES"
+profile_names=()
+profile_dirs=()
+if [[ -n $CLAUDE_PROFILES ]]; then
     # One jq, two lines per profile. Reading names and directories in separate
     # calls would double the only fork this parsing costs.
-    set -l flat (echo $CLAUDE_PROFILES | jq -r '.[] | (.name // ""), (.dir // "")' 2>/dev/null)
-    for i in (seq 1 2 (count $flat))
-        set -l dir $flat[(math $i + 1)]
-        test -n "$dir"; or continue
-        set -a profile_names $flat[$i]
-        set -a profile_dirs (string replace -r '^~' $HOME -- $dir)
-    end
-end
+    mapfile -t flat < <(printf '%s\n' "$CLAUDE_PROFILES" | jq -r '.[] | (.name // ""), (.dir // "")' 2>/dev/null)
+    for ((i = 0; i < ${#flat[@]}; i += 2)); do
+        dir=${flat[i + 1]}
+        [[ -n $dir ]] || continue
+        [[ $dir == '~'* ]] && dir=$HOME${dir:1}
+        profile_names+=("${flat[i]}")
+        profile_dirs+=("$dir")
+    done
+fi
 # Nothing configured: the directory Claude Code keeps its own account in, so
 # running this by hand still shows something. Only that one - any other path is
 # somebody's choice, and guessing at it is what this replaced.
 # Only when nothing was handed over at all. An empty list is an answer - every
 # account turned off, or the last one removed - and answering it with a
 # directory nobody asked for is how "no accounts" became unreachable.
-if test (count $profile_dirs) -eq 0 -a -z "$CLAUDE_PROFILES"
-    set profile_names default
-    set profile_dirs $HOME/.claude
-end
+if ((${#profile_dirs[@]} == 0)) && [[ -z $CLAUDE_PROFILES ]]; then
+    profile_names=(default)
+    profile_dirs=("$HOME/.claude")
+fi
+
+# A path with its last component taken off, the way `dirname` does it - without
+# the fork. Sets __cs_dir.
+__cs_dirname() {
+    local p=$1
+    while [[ $p == */ && $p != / ]]; do p=${p%/}; done
+    if [[ $p != */* ]]; then
+        __cs_dir=.
+        return
+    fi
+    p=${p%/*}
+    while [[ $p == */ ]]; do p=${p%/}; done
+    [[ -n $p ]] || p=/
+    __cs_dir=$p
+}
+
+# A path's last component, the way `basename` does it. Sets __cs_base.
+__cs_basename() {
+    local p=$1
+    while [[ $p == */ && $p != / ]]; do p=${p%/}; done
+    [[ $p == / ]] || p=${p##*/}
+    __cs_base=$p
+}
+
+# A string's words, split on blanks, into __cs_words. Globbing is held off while
+# it splits, so a word like `*` stays a word.
+__cs_split() {
+    local IFS=$' \t\n'
+    set -f
+    # shellcheck disable=SC2206 # splitting is the point
+    __cs_words=($1)
+    set +f
+}
+
+# Field 22 of a /proc/<pid>/stat line: the process start time in clock ticks,
+# which is exactly what Claude Code stores as `procStart`. Field 2 is the
+# executable name in parentheses and may itself contain spaces or parens, so the
+# fields are counted from after the *last* ')' - where field 22 overall becomes
+# field 20. Sets __cs_field (empty when there is no such field).
+__cs_stat_start() {
+    __cs_split "${1##*)}"
+    __cs_field=${__cs_words[19]}
+}
 
 # Is `pid` still the same process that wrote this record?
-#
-# Field 22 of /proc/<pid>/stat is the process start time in clock ticks, which is
-# exactly what Claude Code stores as `procStart`. Field 2 is the executable name
-# in parentheses and may itself contain spaces or parens, so the fields are counted
-# from after the *last* ')' - where field 22 overall becomes field 20.
-function __cs_alive -a proc_root pid want_start
-    set -l statfile $proc_root/$pid/stat
-    test -r $statfile; or return 1
-    set -l line (string collect <$statfile 2>/dev/null)
-    test -n "$line"; or return 1
-    if test -z "$want_start"
+__cs_alive() {
+    local proc_root=$1 pid=$2 want_start=$3
+    local statfile=$proc_root/$pid/stat line=
+    [[ -r $statfile ]] || return 1
+    IFS= read -r -n 4096 line 2>/dev/null <"$statfile"
+    [[ -n $line ]] || return 1
+    if [[ -z $want_start ]]; then
         return 0 # older record with no start time recorded: existence is all we have
-    end
-    set -l fields (string split -n ' ' -- (string replace -r '^.*\)' '' -- $line))
-    test (count $fields) -ge 20; or return 1
-    test "$fields[20]" = "$want_start"
-end
+    fi
+    __cs_stat_start "$line"
+    [[ -n $__cs_field && $__cs_field == "$want_start" ]]
+}
 
 # Is a command running inside this session?
 #
@@ -109,40 +162,56 @@ end
 # which are not shells, so the two never get confused. Subagents run inside the
 # process and leave no trace here - they stay indistinguishable from thinking.
 #
-# Prints the command being run, when it can be recovered, and returns 1 when
-# nothing is running.
-function __cs_running -a proc_root pid
+# Sets __cs_command to the command being run, when it can be recovered, and
+# returns 1 when nothing is running.
+__cs_running() {
+    local proc_root=$1 pid=$2
+    __cs_command=
     # The main thread is where Claude Code's forks are attributed, and reading one
     # file beats globbing the dozens of task/ entries a node process has.
-    set -l children_file $proc_root/$pid/task/$pid/children
-    test -r $children_file; or return 1
-    set -l kids (string split -n ' ' -- (string collect <$children_file 2>/dev/null))
-    test (count $kids) -gt 0; or return 1
+    local children_file=$proc_root/$pid/task/$pid/children
+    [[ -r $children_file ]] || return 1
+    local -a kids=()
+    read -r -a kids 2>/dev/null <"$children_file"
+    ((${#kids[@]} > 0)) || return 1
 
-    for kid in $kids
-        set -l comm (string trim -- (string collect <$proc_root/$kid/comm 2>/dev/null))
-        contains -- "$comm" bash sh dash zsh fish ksh; or continue
+    local kid comm part found shown
+    local quote_dance="'\"'\"'" eval_tail="^(.*)' *<[^<]*\$"
+    for kid in "${kids[@]}"; do
+        comm=
+        read -r -n 64 comm 2>/dev/null <"$proc_root/$kid/comm"
+        case $comm in
+        bash | sh | dash | zsh | fish | ksh) ;;
+        *) continue ;;
+        esac
 
         # Claude Code wraps each command as `… && eval '<command>' < /dev/null …`
         # after sourcing a shell snapshot. The eval'd text is the part worth
-        # showing. `string split0` reads the NUL-separated argv without a fork.
-        set -l argv_parts (string split0 <$proc_root/$kid/cmdline 2>/dev/null)
-        set -l shown ""
-        for part in $argv_parts
-            set -l found (string match -gr "eval '(.*)" -- "$part")
-            test -n "$found"; or continue
-            set shown (string replace -r "' *<[^<]*\$" '' -- "$found")
-            # The command was single-quoted for eval, so its own quotes arrive
-            # as the '"'"' dance. Undo that, then flatten it onto one line.
-            set shown (string replace -a "'\"'\"'" "'" -- "$shown")
-            set shown (string replace -ar '\s+' ' ' -- "$shown")
-            break
-        end
-        echo (string sub -l 120 -- (string trim -- "$shown"))
+        # showing, taken up to the end of its first line. argv is NUL-separated,
+        # and no one argument can be longer than the kernel's 128 KiB limit.
+        shown=
+        if [[ -r $proc_root/$kid/cmdline ]]; then
+            while IFS= read -r -d '' -n 131072 part || [[ -n $part ]]; do
+                [[ $part == *"eval '"* ]] || continue
+                found=${part#*"eval '"}
+                found=${found%%$'\n'*}
+                [[ -n $found ]] || continue
+                shown=$found
+                [[ $shown =~ $eval_tail ]] && shown=${BASH_REMATCH[1]}
+                # The command was single-quoted for eval, so its own quotes arrive
+                # as the '"'"' dance. Undo that, then flatten it onto one line.
+                shown=${shown//"$quote_dance"/"'"}
+                shown=${shown//[$'\t\v\f\r']/ }
+                __cs_split "$shown"
+                shown="${__cs_words[*]}"
+                break
+            done 2>/dev/null <"$proc_root/$kid/cmdline"
+        fi
+        __cs_command=${shown:0:120}
         return 0
-    end
+    done
     return 1
-end
+}
 
 # Did this session's last turn end in an API error?
 #
@@ -153,85 +222,100 @@ end
 # ("You've hit your session limit · resets 6:40pm", "Login expired · Please run
 # /login"). Reading only the tail keeps the cost off the size of the file.
 #
-# Prints the message, and returns 1 when the last turn was fine.
-function __cs_error -a profile_dir session_id
-    test -n "$session_id"; or return 1
-    test -z "$CLAUDE_SESSIONS_NO_ERROR"; or return 1
+# Sets __cs_message to the message, and returns 1 when the last turn was fine.
+__cs_error() {
+    local profile_dir=$1 session_id=$2
+    __cs_message=
+    [[ -n $session_id ]] || return 1
+    [[ -z $CLAUDE_SESSIONS_NO_ERROR ]] || return 1
 
-    set -l transcripts $profile_dir/projects/*/$session_id.jsonl
-    set -l transcript
-    for t in $transcripts
-        test -f $t; and set transcript $t; and break
-    end
-    test -n "$transcript"; or return 1
+    local t transcript=
+    for t in "$profile_dir"/projects/*/"$session_id".jsonl; do
+        if [[ -f $t ]]; then
+            transcript=$t
+            break
+        fi
+    done
+    [[ -n $transcript ]] || return 1
 
-    set -l tail_text (tail -c 32768 $transcript 2>/dev/null | string collect)
-    string match -q '*"isApiErrorMessage":true*' -- "$tail_text"; or return 1
+    local tail_text
+    tail_text=$(tail -c 32768 -- "$transcript" 2>/dev/null)
+    [[ $tail_text == *'"isApiErrorMessage":true'* ]] || return 1
 
     # `fromjson?` drops the partial first line a byte-offset tail leaves behind.
     # -s matters: without it jq runs the filter per line, and "the last assistant
     # entry" silently becomes "any line that is an error".
-    set -l message (printf '%s' $tail_text | jq -Rsr '
+    local message
+    message=$(printf '%s' "$tail_text" | jq -Rsr '
         [splits("\n") | fromjson? ]
         | map(select(.type == "assistant"))
         | last
         | select(.isApiErrorMessage == true)
         | (.message.content[0]?.text // "")
-        | .[0:200]' 2>/dev/null | string collect | string trim)
+        | .[0:200]' 2>/dev/null)
+    # Trimmed, and on one line.
+    message=${message#"${message%%[![:space:]]*}"}
+    message=${message%"${message##*[![:space:]]}"}
 
-    test -n "$message"; or return 1
-    echo $message
-end
+    [[ -n $message ]] || return 1
+    __cs_message=${message//$'\n'/ }
+}
 
 # The git repository a session is sitting in, as "name" and "branch".
 #
 # Walks up for a .git rather than shelling out to git, which would be two more
-# processes per session on every poll. Prints two lines: repository name, then
-# branch (either may be empty).
-function __cs_git -a dir
-    set -l root ""
-    set -l probe $dir
+# processes per session on every poll. Sets __cs_repo and __cs_branch (either
+# may be empty).
+__cs_git() {
+    local dir=$1 root='' probe=$1 i line
+    __cs_repo=
+    __cs_branch=
     # Bounded so a pathological path can't spin, and absolute paths are shallow.
-    for i in (seq 40)
-        test -n "$probe"; or break
-        if test -e $probe/.git
-            set root $probe
+    for ((i = 0; i < 40; i++)); do
+        [[ -n $probe ]] || break
+        if [[ -e $probe/.git ]]; then
+            root=$probe
             break
-        end
-        set -l parent (path dirname $probe)
-        test "$parent" = "$probe"; and break
-        set probe $parent
-    end
+        fi
+        __cs_dirname "$probe"
+        [[ $__cs_dir == "$probe" ]] && break
+        probe=$__cs_dir
+    done
 
-    if test -z "$root"
-        echo ""
-        echo ""
-        return
-    end
+    [[ -n $root ]] || return 0
 
     # A worktree or submodule has .git as a file pointing at the real directory.
-    set -l gitdir $root/.git
-    if test -f $gitdir
-        set -l pointer (string match -gr '^gitdir:\s*(.*)$' -- (string trim -- (string collect <$gitdir 2>/dev/null)))
-        if test -n "$pointer"
-            string match -qr '^/' -- $pointer; or set pointer $root/$pointer
-            set gitdir $pointer
-        end
-    end
+    local gitdir=$root/.git
+    if [[ -f $gitdir ]]; then
+        local pointer='' pointer_re='^gitdir:[[:space:]]*(.*)$'
+        while IFS= read -r -n 4096 line || [[ -n $line ]]; do
+            if [[ $line =~ $pointer_re ]]; then
+                pointer=${BASH_REMATCH[1]}
+                pointer=${pointer%"${pointer##*[![:space:]]}"}
+                break
+            fi
+        done 2>/dev/null <"$gitdir"
+        if [[ -n $pointer ]]; then
+            [[ $pointer == /* ]] || pointer=$root/$pointer
+            gitdir=$pointer
+        fi
+    fi
 
-    set -l branch ""
-    if test -r $gitdir/HEAD
-        set -l head (string trim -- (string collect <$gitdir/HEAD 2>/dev/null))
-        set branch (string match -gr '^ref: refs/heads/(.*)$' -- $head)
-        if test -z "$branch"
+    if [[ -r $gitdir/HEAD ]]; then
+        local head=
+        read -r -n 4096 head 2>/dev/null <"$gitdir/HEAD"
+        if [[ $head =~ ^ref:\ refs/heads/(.*)$ ]]; then
+            __cs_branch=${BASH_REMATCH[1]}
+        fi
+        if [[ -z $__cs_branch ]]; then
             # Detached: show the short sha, which is what git itself would.
-            string match -qr '^[0-9a-f]{7,40}$' -- $head; and set branch (string sub -l 7 -- $head)
-        end
-    end
+            [[ $head =~ ^[0123456789abcdef]{7,40}$ ]] && __cs_branch=${head:0:7}
+        fi
+    fi
 
-    echo (path basename $root)
-    echo $branch
-end
+    __cs_basename "$root"
+    __cs_repo=$__cs_base
+}
 
 # ─── OMP ────────────────────────────────────────────────────────────────────
 #
@@ -241,56 +325,106 @@ end
 # which transcript each one is, and the tail of that transcript says what it is
 # doing - all three from files, like everything else here.
 
-# Every OMP session process. The compiled binary runs as `omp`; an install run
-# through bun or node shows that runtime's name with omp's script as the first
-# argument. OMP's own helper processes (`omp __omp_worker_…`) share the name,
-# and are dropped - none of them is a session.
+# Every OMP session process, in ascending pid order, into __cs_omp_pid_list. The
+# compiled binary runs as `omp`; an install run through bun or node shows that
+# runtime's name with omp's script as the first argument. OMP's own helper
+# processes (`omp __omp_worker_…`) share the name, and are dropped - none of
+# them is a session.
 #
-# Every list below is globbed or read into a variable before it is used: an
-# unmatched glob in an argument list is an error in fish, and `string` or `path`
-# handed no arguments at all reads stdin instead - a hang, run from a terminal.
-#
-# And every read has a ceiling (`read -n`), so no file - a process's argv, a
+# Every read has a ceiling (`read -n`), so no file - a process's argv, a
 # breadcrumb, a transcript with no newline in it - can make this hold more than
-# a few kilobytes of it in memory.
-function __cs_omp_pids -a proc_root
-    set -l entries $proc_root/*
-    test (count $entries) -gt 0; or return
-    for pid in (string match -r '^[0-9]+$' -- (path basename $entries))
-        # Checked first: a failed redirection is a warning fish prints wherever
-        # stderr points, and a process can exit between the glob and the read.
-        test -r $proc_root/$pid/comm; or continue
-        set -l comm
-        read -n 64 comm <$proc_root/$pid/comm; or continue
-        contains -- "$comm" omp bun node; or continue
+# a few kilobytes of it in memory. And every read has its errors discarded: a
+# process can exit between the glob and the read.
+#
+# This walks every process on the machine, so it sticks to glob tests: a bash
+# regex is compiled afresh each time it is matched.
+__cs_omp_pids() {
+    local proc_root=$1 entry pid comm a0 a1 a2
+    local -a by_pid=()
+    __cs_omp_pid_list=()
+    # Indexing a sparse array by pid sorts them numerically for free.
+    for entry in "$proc_root"/[1-9]*; do
+        pid=${entry##*/}
+        [[ $pid == *[!0-9]* ]] || by_pid[pid]=1
+    done
+    for pid in "${!by_pid[@]}"; do
+        comm=
+        IFS= read -r -n 64 comm 2>/dev/null <"$proc_root/$pid/comm"
+        case $comm in
+        omp | bun | node) ;;
+        *) continue ;;
+        esac
         # The first three arguments are all that is looked at: the helper's
         # marker comes first for the binary, second through bun or node.
-        set -l a0
-        set -l a1
-        set -l a2
-        test -r $proc_root/$pid/cmdline; or continue
-        begin
-            read -z -n 4096 a0
-            read -z -n 4096 a1
-            read -z -n 4096 a2
-        end <$proc_root/$pid/cmdline
-        test -n "$a0"; or continue
-        string match -q -- '__omp_*' "$a1" "$a2"; and continue
-        if test "$comm" != omp
-            string match -qr -- '(^|/)omp$|/pi-coding-agent/' "$a1"; or continue
-        end
-        echo $pid
-    end
-end
+        a0='' a1='' a2=''
+        [[ -r $proc_root/$pid/cmdline ]] || continue
+        {
+            IFS= read -r -d '' -n 4096 a0
+            IFS= read -r -d '' -n 4096 a1
+            IFS= read -r -d '' -n 4096 a2
+        } 2>/dev/null <"$proc_root/$pid/cmdline"
+        [[ -n $a0 ]] || continue
+        [[ $a1 == __omp_* || $a2 == __omp_* ]] && continue
+        if [[ $comm != omp ]]; then
+            [[ $a1 =~ (^|/)omp$|/pi-coding-agent/ ]] || continue
+        fi
+        __cs_omp_pid_list+=("$pid")
+    done
+}
 
 # Only a file named the way OMP names a session's transcript is ever read as
 # one: <timestamp>_<session-id>.jsonl, and a regular file at that.
-function __cs_omp_is_transcript -a path
-    string match -qr -- '/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9-]+Z_[^/]+\.jsonl$' "$path"
-end
+__cs_omp_is_transcript() {
+    [[ $1 == */*.jsonl && $1 =~ /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9-]+Z_[^/]+\.jsonl$ ]]
+}
 
-# The transcript an OMP process belongs to, printed as a path - which may not
-# exist yet, for a session nobody has typed into.
+# Of these existing files, the one modified last - the first of them, on a tie.
+# One `stat` for the lot, and none at all when there is only one. Sets
+# __cs_newest.
+__cs_newest_of() {
+    __cs_newest=$1
+    (($# > 1)) || return 0
+    local -a mtimes
+    mapfile -t mtimes < <(stat -c %Y -- "$@" 2>/dev/null)
+    local i best_mtime=0
+    __cs_newest=
+    for ((i = 0; i < $#; i++)); do
+        [[ ${mtimes[i]} =~ ^[0-9]+$ ]] || continue
+        if [[ -z $__cs_newest ]] || ((mtimes[i] > best_mtime)); then
+            __cs_newest=${*:i+1:1}
+            best_mtime=${mtimes[i]}
+        fi
+    done
+}
+
+# Every path a session's transcript is looked for through - each process's
+# working directory and open fds - resolved by one `realpath` for all of them,
+# rather than one per session. -m gives one answer per path whether or not it
+# leads anywhere, so they stay paired by position; should they not, each path is
+# asked about on its own. Fills __cs_resolved, keyed by path.
+declare -A __cs_resolved=()
+__cs_resolve_all() {
+    local proc_root=$1 pid i
+    shift
+    local -a paths=() out=()
+    for pid; do
+        paths+=("$proc_root/$pid/cwd" "$proc_root/$pid/fd/"*)
+    done
+    mapfile -t -d '' out < <(realpath -m -z -- "${paths[@]}" 2>/dev/null)
+    if ((${#out[@]} != ${#paths[@]})); then
+        out=()
+        for i in "${!paths[@]}"; do
+            out[i]=$(realpath -m -- "${paths[i]}" 2>/dev/null)
+        done
+    fi
+    for i in "${!paths[@]}"; do
+        __cs_resolved[${paths[i]}]=${out[i]}
+    done
+}
+
+# The transcript an OMP process belongs to, as a path in __cs_transcript - which
+# may not exist yet, for a session nobody has typed into. Also sets __cs_cwd to
+# the process's working directory. Both come out of __cs_resolved.
 #
 # First choice is the one it has open. A session's transcript is named
 # <timestamp>_<session-id>.jsonl; a subagent's, which the same process also
@@ -302,121 +436,156 @@ end
 # open there: <agent-dir>/terminal-sessions/<tty>, holding the cwd and the
 # transcript path. It is trusted only when its cwd is the process's own, since a
 # terminal outlives the sessions run in it.
-function __cs_omp_transcript -a proc_root pid cwd
-    set -l best ""
-    set -l best_mtime 0
-    set -l fds $proc_root/$pid/fd/*
-    set -l open
-    test (count $fds) -gt 0; and set open (path resolve $fds)
-    for f in $open
-        __cs_omp_is_transcript $f; and test -f $f; or continue
-        set -l m (path mtime -- $f)
-        if test -z "$best"; or test "$m" -gt $best_mtime
-            set best $f
-            set best_mtime $m
-        end
-    end
+__cs_omp_transcript() {
+    local proc_root=$1 pid=$2
+    __cs_transcript=
+    __cs_cwd=${__cs_resolved[$proc_root/$pid/cwd]}
 
-    if test -z "$best"
-        # OMP names a terminal after its tty, /dev/pts/4 becoming pts-4. `path
-        # resolve` cannot be used here: it gives up on a link it cannot follow.
-        set -l tty (readlink $proc_root/$pid/fd/0 2>/dev/null)
-        string match -qr '^/dev/.' -- "$tty"; or return 1
-        set -l terminal (string replace -a / - -- (string sub -s 6 -- $tty))
-        for crumb in $HOME/.omp/agent/terminal-sessions/$terminal \
-                $HOME/.omp/profiles/*/agent/terminal-sessions/$terminal
-            test -f $crumb; or continue
-            set -l crumb_cwd
-            set -l crumb_file
-            begin
-                read -n 4096 crumb_cwd
-                read -n 4096 crumb_file
-            end <$crumb
-            test "$crumb_cwd" = "$cwd"; or continue
-            __cs_omp_is_transcript $crumb_file; or continue
-            set -l m (path mtime -- $crumb)
-            if test -z "$best"; or test "$m" -gt $best_mtime
-                set best $crumb_file
-                set best_mtime $m
-            end
-        end
-    end
+    # In fd order, numerically, which a plain glob would not give.
+    local f fd
+    local -a by_fd=() others=() candidates=()
+    for f in "$proc_root/$pid/fd/"*; do
+        fd=${f##*/}
+        if [[ $fd == 0 || ($fd == [1-9]* && $fd != *[!0-9]*) ]]; then
+            by_fd[fd]=$f
+        else
+            others+=("$f")
+        fi
+    done
+    for f in "${by_fd[@]}" "${others[@]}"; do
+        f=${__cs_resolved[$f]}
+        __cs_omp_is_transcript "$f" && [[ -f $f ]] && candidates+=("$f")
+    done
+    if ((${#candidates[@]} > 0)); then
+        __cs_newest_of "${candidates[@]}"
+        __cs_transcript=$__cs_newest
+        [[ -n $__cs_transcript ]] && return 0
+    fi
 
-    test -n "$best"; or return 1
-    echo $best
-end
+    # OMP names a terminal after its tty, /dev/pts/4 becoming pts-4. Only
+    # `readlink` itself here: `realpath` would chase a link it cannot follow.
+    local tty
+    tty=$(readlink -- "$proc_root/$pid/fd/0" 2>/dev/null)
+    [[ $tty =~ ^/dev/. ]] || return 1
+    local terminal=${tty:5}
+    terminal=${terminal//\//-}
+    local crumb crumb_cwd crumb_file
+    local -a crumbs=() crumb_files=()
+    for crumb in "$HOME/.omp/agent/terminal-sessions/$terminal" \
+        "$HOME"/.omp/profiles/*/agent/terminal-sessions/"$terminal"; do
+        [[ -f $crumb ]] || continue
+        crumb_cwd='' crumb_file=''
+        {
+            IFS= read -r -n 4096 crumb_cwd
+            IFS= read -r -n 4096 crumb_file
+        } 2>/dev/null <"$crumb"
+        [[ $crumb_cwd == "$__cs_cwd" ]] || continue
+        __cs_omp_is_transcript "$crumb_file" || continue
+        crumbs+=("$crumb")
+        crumb_files+=("$crumb_file")
+    done
+    ((${#crumbs[@]} > 0)) || return 1
+    __cs_newest_of "${crumbs[@]}"
+    local i
+    for i in "${!crumbs[@]}"; do
+        if [[ ${crumbs[i]} == "$__cs_newest" ]]; then
+            __cs_transcript=${crumb_files[i]}
+            break
+        fi
+    done
+    [[ -n $__cs_transcript ]]
+}
 
 # When a process started, in clock ticks since boot: field 22 of its stat, which
-# is also what Claude Code records as `procStart`. Field 2 is the executable
-# name in parentheses and may hold spaces of its own, so fields are counted from
-# after the last ')'. Prints nothing when the process is gone.
-function __cs_start_ticks -a proc_root pid
-    test -r $proc_root/$pid/stat; or return 1
-    set -l line
-    read -n 4096 line <$proc_root/$pid/stat
-    set -l fields (string split -n ' ' -- (string replace -r '^.*\)' '' -- "$line"))
-    string match -qr '^[0-9]+$' -- "$fields[20]"; or return 1
-    echo $fields[20]
-end
+# is also what Claude Code records as `procStart` (see __cs_stat_start). Sets
+# __cs_ticks, and returns 1 when the process is gone.
+__cs_start_ticks() {
+    local proc_root=$1 pid=$2 line=
+    __cs_ticks=
+    [[ -r $proc_root/$pid/stat ]] || return 1
+    IFS= read -r -n 4096 line 2>/dev/null <"$proc_root/$pid/stat"
+    __cs_stat_start "$line"
+    [[ $__cs_field =~ ^[0-9]+$ ]] || return 1
+    __cs_ticks=$__cs_field
+}
 
-set -l bodies
-set -l extras # index-aligned with $bodies: the fields worked out here
-set -l present
+bodies=()
+extras=() # seven per entry in $bodies, in step with it: the fields worked out here
+present=()
 
-for i in (seq (count $profile_dirs))
-    set -l id $profile_names[$i]
-    set -l dir $profile_dirs[$i]
+re_proc_start='"procStart"[[:space:]]*:[[:space:]]*"([^"]*)"'
+re_status='"status"[[:space:]]*:[[:space:]]*"([^"]*)"'
+re_session_id='"sessionId"[[:space:]]*:[[:space:]]*"([^"]*)"'
+re_cwd='"cwd"[[:space:]]*:[[:space:]]*"([^"]*)"'
+
+for i in "${!profile_dirs[@]}"; do
+    id=${profile_names[i]}
+    dir=${profile_dirs[i]}
     # The stock directory is the one place $CLAUDE_CONFIG_DIR must never be set
     # to, so a session from it gets a plain `claude --resume`.
-    set -l is_default false
-    test "$dir" = "$HOME/.claude"; and set is_default true
-    test -d $dir; and set -a present $id
+    is_default=false
+    [[ $dir == "$HOME/.claude" ]] && is_default=true
+    [[ -d $dir ]] && present+=("$id")
 
-    for record in $dir/sessions/*.json
-        test -f $record; or continue
+    # Records in pid order, numerically. A name with a leading zero is never a
+    # live pid, since /proc has none.
+    records=()
+    for record in "$dir"/sessions/*.json; do
+        pid=${record##*/}
+        pid=${pid%.json}
+        [[ $pid =~ ^[1-9][0-9]*$ ]] && records[pid]=$record
+    done
 
-        set -l pid (string replace -r '\.json$' '' -- (basename $record))
-        string match -qr '^[0-9]+$' -- $pid; or continue
+    for pid in "${!records[@]}"; do
+        record=${records[pid]}
+        [[ -f $record ]] || continue
 
         # A torn record - Claude Code rewriting the file while this reads it - is
         # not valid JSON, and would fail the whole batch. Requiring a complete
         # object drops just that one record and keeps the rest of the panel.
-        set -l body (string trim -- (string collect <$record 2>/dev/null))
-        string match -qr '^\{.*\}$' -- "$body"; or continue
+        # Trimmed, with any line breaks turned into spaces, which JSON allows.
+        body=
+        IFS= read -r -d '' body 2>/dev/null <"$record"
+        body=${body#"${body%%[![:space:]]*}"}
+        body=${body%"${body##*[![:space:]]}"}
+        body=${body//$'\n'/ }
+        [[ $body == \{*\} ]] || continue
 
-        set -l want_start (string match -gr '"procStart"\s*:\s*"([^"]*)"' -- "$body")
-        __cs_alive $proc_root $pid "$want_start"; or continue
+        want_start=
+        [[ $body =~ $re_proc_start ]] && want_start=${BASH_REMATCH[1]}
+        __cs_alive "$proc_root" "$pid" "$want_start" || continue
 
-        set -l status_now (string match -gr '"status"\s*:\s*"([^"]*)"' -- "$body")
-        set -l session_id (string match -gr '"sessionId"\s*:\s*"([^"]*)"' -- "$body")
-        set -l cwd (string match -gr '"cwd"\s*:\s*"([^"]*)"' -- "$body")
+        status_now='' session_id='' cwd=''
+        [[ $body =~ $re_status ]] && status_now=${BASH_REMATCH[1]}
+        [[ $body =~ $re_session_id ]] && session_id=${BASH_REMATCH[1]}
+        [[ $body =~ $re_cwd ]] && cwd=${BASH_REMATCH[1]}
 
         # Only busy sessions can be running a command, and only idle ones can be
         # sitting on a failed turn - so neither check runs where it can't apply.
-        set -l overlay ""
-        set -l detail ""
-        if test "$status_now" = busy
-            if set -l command (__cs_running $proc_root $pid)
-                set overlay running
-                set detail "$command"
-            end
-        else if test "$status_now" = idle
-            if set -l message (__cs_error $dir "$session_id")
-                set overlay error
-                set detail "$message"
-            end
-        end
+        overlay=
+        detail=
+        if [[ $status_now == busy ]]; then
+            if __cs_running "$proc_root" "$pid"; then
+                overlay=running
+                detail=$__cs_command
+            fi
+        elif [[ $status_now == idle ]]; then
+            if __cs_error "$dir" "$session_id"; then
+                overlay=error
+                detail=$__cs_message
+            fi
+        fi
 
-        set -l git_info (__cs_git "$cwd")
+        __cs_git "$cwd"
 
-        set -a bodies "$body"
+        bodies+=("$body")
         # Every value carries a leading ":" because jq still reads an argument
         # beginning with "-" as an option, even after --args - and a command line
         # or an error message can quite reasonably start with one. jq strips it.
-        set -a extras ":$id" ":$overlay" ":$detail" ":$git_info[1]" ":$git_info[2]" \
-            ":$dir" ":$is_default"
-    end
-end
+        extras+=(":$id" ":$overlay" ":$detail" ":$__cs_repo" ":$__cs_branch"
+            ":$dir" ":$is_default")
+    done
+done
 
 # OMP sessions join the same two lists, so they sort and count with the rest.
 # Each transcript's tail becomes a registry-shaped record - `status` one of
@@ -430,99 +599,121 @@ end
 # about 4 MiB. A command that cannot start, for want of memory or processes or
 # anything else, costs the OMP rows of that one refresh and nothing more:
 # nothing is retried, nothing is written, and the Claude Code rows still print.
-set -l omp_pids
-test "$CLAUDE_SESSIONS_OMP" != 0; and set omp_pids (__cs_omp_pids $proc_root)
-set -l omp_max 32
-test (count $omp_pids) -gt $omp_max; and set omp_pids $omp_pids[1..$omp_max]
-if test (count $omp_pids) -gt 0
-    set -l btime
-    test -r $proc_root/stat; and set btime (string match -gr '^btime ([0-9]+)$' <$proc_root/stat)
-    set -l omp_program (status dirname)/omp-sessions.jq
+__cs_omp_pid_list=()
+[[ $CLAUDE_SESSIONS_OMP != 0 ]] && __cs_omp_pids "$proc_root"
+omp_max=32
+omp_pids=("${__cs_omp_pid_list[@]:0:omp_max}")
+if ((${#omp_pids[@]} > 0)); then
+    btime=
+    __cs_resolve_all "$proc_root" "${omp_pids[@]}"
+    if [[ -r $proc_root/stat ]]; then
+        while IFS= read -r line; do
+            if [[ $line == 'btime '* && $line =~ ^btime\ ([0-9]+)$ ]]; then
+                btime=${BASH_REMATCH[1]}
+                break
+            fi
+        done 2>/dev/null <"$proc_root/stat"
+    fi
+    script_dir=${BASH_SOURCE[0]%/*}
+    [[ $script_dir == "${BASH_SOURCE[0]}" ]] && script_dir=.
+    omp_program=$script_dir/omp-sessions.jq
 
-    set -l omp_files
-    set -l omp_meta # seven per session, in the order the jq below reads them
-    set -l omp_extras
-    for pid in $omp_pids
+    omp_files=()
+    omp_meta=() # seven per session, in the order the jq below reads them
+    omp_extras=()
+    for pid in "${omp_pids[@]}"; do
         # Gone since the scan: nothing to report, and nothing to end later.
-        set -l ticks (__cs_start_ticks $proc_root $pid); or continue
-        set -l cwd (path resolve $proc_root/$pid/cwd)
-        set -l file (__cs_omp_transcript $proc_root $pid "$cwd"); or continue
-        set -l session_id (string match -gr '_([^_/]+)\.jsonl$' -- $file)
+        __cs_start_ticks "$proc_root" "$pid" || continue
+        ticks=$__cs_ticks
+        __cs_omp_transcript "$proc_root" "$pid" || continue
+        cwd=$__cs_cwd
+        file=$__cs_transcript
+        session_id=
+        [[ $file =~ _([^_/]+)\.jsonl$ ]] && session_id=${BASH_REMATCH[1]}
 
         # Transcripts live at <agent-dir>/sessions/<project>/<file>, unless
         # --session-dir put them somewhere else - in which case the directory
         # holding the file is all there is to say about where it came from.
-        set -l sessions_dir (path dirname (path dirname $file))
-        set -l agent_dir (path dirname $sessions_dir)
-        test (path basename $sessions_dir) = sessions; or set agent_dir (path dirname $file)
+        __cs_dirname "$file"
+        file_dir=$__cs_dir
+        __cs_dirname "$file_dir"
+        sessions_dir=$__cs_dir
+        __cs_dirname "$sessions_dir"
+        agent_dir=$__cs_dir
+        __cs_basename "$sessions_dir"
+        [[ $__cs_base == sessions ]] || agent_dir=$file_dir
 
         # The stock agent directory resumes with a plain `omp --resume`, and a
         # named profile (`omp --profile <name>`) lives under ~/.omp/profiles.
-        set -l label OMP
-        set -l omp_profile ""
-        set -l is_default false
-        if test "$agent_dir" = "$HOME/.omp/agent"
-            set is_default true
-        else if set omp_profile (string match -gr \
-                '^'(string escape --style=regex -- $HOME)'/\.omp/profiles/([^/]+)/agent$' -- $agent_dir)
-            set label "OMP $omp_profile"
-        end
+        label=OMP
+        omp_profile=
+        is_default=false
+        if [[ $agent_dir == "$HOME/.omp/agent" ]]; then
+            is_default=true
+        elif [[ $agent_dir == "$HOME/.omp/profiles/"* &&
+            ${agent_dir#"$HOME/.omp/profiles/"} =~ ^([^/]+)/agent$ ]]; then
+            omp_profile=${BASH_REMATCH[1]}
+            label="OMP $omp_profile"
+        fi
 
         # Epoch milliseconds: /proc/stat has the boot time, and USER_HZ is 100
         # on every architecture Linux exposes to userspace, so a tick is 10 ms.
-        set -l started 0
-        test -n "$btime"; and set started (math -s0 "($btime * 100 + $ticks) * 10")
+        started=0
+        [[ -n $btime ]] && started=$(((btime * 100 + ticks) * 10))
 
-        set -l git_info (__cs_git "$cwd")
+        __cs_git "$cwd"
 
-        set -a omp_files $file
-        set -a omp_meta ":$pid" ":$session_id" ":$cwd" ":$started" ":$file" \
-            ":$omp_profile" ":$ticks"
-        set -a omp_extras ":$label" ":" ":" ":$git_info[1]" ":$git_info[2]" \
-            ":$agent_dir" ":$is_default"
-    end
+        omp_files+=("$file")
+        omp_meta+=(":$pid" ":$session_id" ":$cwd" ":$started" ":$file"
+            ":$omp_profile" ":$ticks")
+        omp_extras+=(":$label" ":" ":" ":$__cs_repo" ":$__cs_branch"
+            ":$agent_dir" ":$is_default")
+    done
 
     # One stream for every session, read by omp-sessions.jq beside this script:
     # a record separator opens each, then the transcript's first line - the
     # title, kept in a fixed-width slot OMP rewrites in place - then its tail.
     # A separator cannot occur inside JSON text, so it is never mistaken for a
     # line of transcript.
-    set -l records
-    if test (count $omp_files) -gt 0
-        set records (
-            for f in $omp_files
+    records=()
+    if ((${#omp_files[@]} > 0)); then
+        mapfile -t records < <(
+            for f in "${omp_files[@]}"; do
                 printf '\x1e\n'
-                test -f $f; or continue
-                set -l first
-                read -n 4096 first <$f
-                printf '%s\n' $first
-                tail -c 131072 -- $f 2>/dev/null
+                [[ -f $f ]] || continue
+                first=
+                IFS= read -r -n 4096 first 2>/dev/null <"$f"
+                printf '%s\n' "$first"
+                tail -c 131072 -- "$f" 2>/dev/null
                 echo
-            end | jq -ncR -f $omp_program --args $omp_meta 2>/dev/null)
-    end
+            done | jq -ncR -f "$omp_program" --args "${omp_meta[@]}" 2>/dev/null)
+    fi
 
     # One record per session or none at all: the lists are paired by position,
     # so a jq that fell over halfway must not shift every record after it.
-    if test (count $records) -eq (count $omp_files)
-        set -a bodies $records
-        set -a extras $omp_extras
-    end
-end
+    if ((${#records[@]} == ${#omp_files[@]})); then
+        bodies+=("${records[@]}")
+        extras+=("${omp_extras[@]}")
+    fi
+fi
 
-# fish concatenates a command substitution with an adjacent literal, so this is a
-# millisecond stamp without relying on `date +%N`, which uutils coreutils - the
-# default on this distro - does not accept a width for.
-set -l now (date +%s)000
+# Seconds with three zeros appended is a millisecond stamp, without relying on
+# `date +%N`, which uutils coreutils - the default on this distro - does not
+# accept a width for.
+now=$(date +%s)000
 
-set -l present_json '[]'
-test (count $present) -gt 0; and set present_json '["'(string join '","' $present)'"]'
+present_json='[]'
+if ((${#present[@]} > 0)); then
+    printf -v joined '%s","' "${present[@]}"
+    present_json='["'${joined%'","'}'"]'
+fi
 
 # Record bodies arrive on stdin, one JSON object per record, in the same order as
 # $extras - so a record's position is enough to pair it with what was worked out
 # for it above.
-printf '%s\n' $bodies | jq -n \
-    --argjson now $now \
-    --argjson profiles $present_json '
+printf '%s\n' "${bodies[@]}" | jq -n \
+    --argjson now "$now" \
+    --argjson profiles "$present_json" '
     def statusLabel($s):
         {waiting: "Waiting", running: "Running", busy: "Working",
          shell: "Shell", idle: "Done", error: "Error"}[$s]
@@ -597,4 +788,4 @@ printf '%s\n' $bodies | jq -n \
             + {total: ($sessions | length)}
         ),
         sessions: $sessions
-    }' --args $extras
+    }' --args "${extras[@]}"

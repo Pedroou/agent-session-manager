@@ -1,7 +1,7 @@
 # Design
 
 **Date:** 2026-09-04, revised 2026-09-08
-**Status:** Implemented. Installed by `./install.fish`.
+**Status:** Implemented. Installed by `./install.sh`.
 **Plasmoid id:** `io.github.pedroou.agentsessionmanager`
 
 ## Goal
@@ -282,13 +282,13 @@ the 32 most recent ids.
 ## Architecture
 
 ```
-install.fish                     # kpackagetool6 --install / --upgrade
+install.sh                       # kpackagetool6 --install / --upgrade
 package/
   metadata.json
   contents/
-    scripts/claude-sessions      # fish: registry + /proc + transcripts → JSON
+    scripts/claude-sessions      # bash: registry + /proc + transcripts → JSON
     scripts/omp-sessions.jq      # OMP transcript tails → registry-shaped records
-    scripts/claude-usage         # fish: credentials + usage API → JSON
+    scripts/claude-usage         # bash: credentials + usage API → JSON
     scripts/omp-usage.jq         # `omp usage --json` → usage profiles
     code/sessions.js             # pure display logic, no Qt
     code/usage.js                # pure usage logic, no Qt
@@ -339,11 +339,13 @@ detail rows and their order, the resume command's shell quoting, and the
 fallbacks when a limit or a profile is missing. Plain JavaScript with no Qt
 import, loaded by node in `test/`.
 
-Costs, measured: the session collector is two subprocesses and ~75 ms; it reads
-`/proc` and record bodies with fish builtins rather than forked `cat`s, which is
-what took it there from ~520 ms. Looking for OMP adds a read of every process's
-`comm` (~15 ms over 600 processes), and each OMP session found adds one `tail`,
-with one jq shared between them: three sessions took a run from 20 ms to 90 ms.
+Costs, measured: the session collector runs two programs and takes ~25 ms; it reads
+`/proc` and record bodies with bash builtins rather than forked `cat`s, which is
+what took it there from ~520 ms, and its helpers hand their answers back in
+variables rather than through a `$(…)` subshell each. Looking for OMP adds a
+read of every process's `comm` (~15 ms over 500 processes), and each OMP session
+found adds one `tail`, with one `realpath` and one jq shared between them: three
+sessions took a run from 25 ms to 90 ms.
 
 ### Data flow
 
@@ -539,7 +541,7 @@ All of it resets from one button, at the foot of the General page.
 - **The registry is a Claude Code internal.** `sessions/<pid>.json` is not
   documented API, and the `status` vocabulary could grow. Two things contain
   that: an unrecognised status is displayed rather than dropped, and all the
-  interpretation lives in one fish script with its own test suite.
+  interpretation lives in one bash script with its own test suite.
 - **So is the usage endpoint**, and so is `isApiErrorMessage`. A change to
   either degrades one panel of the widget, not the widget.
 - **So is OMP's transcript, in part.** Its layout is written up in OMP's own
@@ -548,7 +550,7 @@ All of it resets from one button, at the foot of the General page.
   the name - never the session - and all of it is one jq file under test.
 - **`/proc` is Linux-only.** So is a Plasma panel, so this costs nothing here.
 - **Plasma caches applet QML.** After an upgrade the shell has to be restarted
-  before the new code loads; `install.fish` says so rather than doing it.
+  before the new code loads; `install.sh` says so rather than doing it.
 
 ## The screenshots
 

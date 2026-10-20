@@ -1,70 +1,72 @@
-#!/usr/bin/env fish
+#!/usr/bin/env bash
 # Install (or update) the Claude Sessions panel widget for the current user.
 #
 # Safe to re-run: it upgrades in place when the widget is already installed, and
 # restarts plasmashell only when asked, since that closes any open popups.
 
-set -l here (dirname (realpath (status filename)))
-set -l package $here/package
-set -l id (jq -r '.KPlugin.Id' $package/metadata.json)
+here=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+package=$here/package
 
 # timeout bounds every collector run the widget starts (see refresh() in main.qml).
-for tool in kpackagetool6 jq fish timeout
-    if not command -q $tool
+for tool in kpackagetool6 jq bash timeout; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
         echo "✗ $tool is required but not on \$PATH."
         exit 1
-    end
-end
+    fi
+done
 
-# The collectors use fish's `path` builtin, which arrived in 3.5. Tested for
-# directly rather than by parsing a version string: the builtin is the thing
-# that breaks, and an old fish would otherwise fail later with a bare
-# "path: command not found" from a script nobody was looking at.
-if not builtin --names | string match -q path
-    echo "✗ This fish is too old: the collectors need the `path` builtin (fish 3.5+)."
-    echo "  Yours is $version."
-    exit 1
-end
+id=$(jq -r '.KPlugin.Id' "$package/metadata.json")
 
-if not test -x $package/contents/scripts/claude-sessions
+if [[ ! -x $package/contents/scripts/claude-sessions ]]; then
     echo "✗ $package/contents/scripts/claude-sessions is not executable."
     echo "  Run: chmod +x $package/contents/scripts/claude-sessions"
     exit 1
-end
+fi
 
 # The widget shells out to this on every refresh; catching a broken collector
 # here beats staring at an empty popup later.
-if not $package/contents/scripts/claude-sessions >/dev/null
+if ! "$package/contents/scripts/claude-sessions" >/dev/null; then
     echo "✗ The collector script failed to run. Fix that before installing."
     exit 1
-end
+fi
 
 # kpackagetool6 walks every installed plasmoid and complains about each one that
 # isn't an applet - other people's widgets, nothing to do with this package. That
-# one line is dropped; every other message still gets through.
-function __kpt
-    kpackagetool6 --type Plasma/Applet $argv 2>&1 \
-        | string match -v -- '*does not match requested format*'
-    return $pipestatus[1]
-end
+# one line is dropped; every other message still gets through, and the exit
+# status is kpackagetool6's own.
+__kpt() {
+    kpackagetool6 --type Plasma/Applet "$@" 2>&1 |
+        grep -v -F -- 'does not match requested format'
+    return "${PIPESTATUS[0]}"
+}
 
 # The icon has to live in an icon theme, not just in the package. A package's
 # own icons/ directory is not on the icon search path, so the name fell through
 # KDE's dash-suffix fallback - "io.github.pedroou.agentsessionmanager" has no
 # dashes precisely so it cannot degrade into somebody else's "claude" icon.
-set -l icon_dir $HOME/.local/share/icons/hicolor/scalable/apps
-mkdir -p $icon_dir
-cp $package/contents/icons/io.github.pedroou.agentsessionmanager.svg $icon_dir/
+icon_dir=$HOME/.local/share/icons/hicolor/scalable/apps
+mkdir -p "$icon_dir"
+cp "$package/contents/icons/io.github.pedroou.agentsessionmanager.svg" "$icon_dir/"
 echo "→ Icon installed to $icon_dir"
 
-if contains -- $id (__kpt --list | string trim)
+installed=false
+mapfile -t listed < <(__kpt --list)
+for entry in "${listed[@]}"; do
+    entry=${entry#"${entry%%[![:space:]]*}"}
+    entry=${entry%"${entry##*[![:space:]]}"}
+    if [[ $entry == "$id" ]]; then
+        installed=true
+        break
+    fi
+done
+
+if [[ $installed == true ]]; then
     echo "→ Updating $id"
-    __kpt --upgrade $package
+    __kpt --upgrade "$package"
 else
     echo "→ Installing $id"
-    __kpt --install $package
-end
-or exit $status
+    __kpt --install "$package"
+fi || exit
 
 echo
 echo "✓ Installed."
@@ -72,6 +74,6 @@ echo
 echo "  Add it: right-click the panel → Add or Manage Widgets… → search \"Agent Session Manager\"."
 echo
 echo "  Already had it on the panel? Plasma caches the old QML, so reload the shell:"
-echo "      kquitapp6 plasmashell; and kstart plasmashell"
+echo "      kquitapp6 plasmashell && kstart plasmashell"
 echo "  Then check the pid changed - the restart can fail silently:"
 echo "      pgrep -x plasmashell"

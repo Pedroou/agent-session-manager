@@ -1,4 +1,4 @@
-#!/usr/bin/env -S fish --no-config
+#!/usr/bin/env bash
 # Print each profile's plan usage, as one JSON document: every configured Claude
 # Code account, then every Anthropic login OMP has.
 #
@@ -24,63 +24,76 @@
 #
 # Exit status is 0 whenever a document was printed, including "nothing to show".
 
-set -l endpoint https://api.anthropic.com/api/oauth/usage
+# An unmatched glob expands to nothing, rather than to itself.
+shopt -s nullglob
+
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Agent Session Manager needs jq. Install the jq package and it will pick it up on the next refresh." >&2
+    exit 1
+fi
+
+endpoint=https://api.anthropic.com/api/oauth/usage
 
 # Which config directories to ask about, and what to call each one. Kept in step
 # with claude-sessions on purpose: the two are read together and a profile the
 # session list knows about but the usage footer does not would be a puzzle.
-set -l profile_names
-set -l profile_dirs
-if test -n "$CLAUDE_PROFILES"
-    set -l flat (echo $CLAUDE_PROFILES | jq -r '.[] | (.name // ""), (.dir // "")' 2>/dev/null)
-    for i in (seq 1 2 (count $flat))
-        set -l dir $flat[(math $i + 1)]
-        test -n "$dir"; or continue
-        set -a profile_names $flat[$i]
-        set -a profile_dirs (string replace -r '^~' $HOME -- $dir)
-    end
-end
+profile_names=()
+profile_dirs=()
+if [[ -n $CLAUDE_PROFILES ]]; then
+    mapfile -t flat < <(printf '%s\n' "$CLAUDE_PROFILES" | jq -r '.[] | (.name // ""), (.dir // "")' 2>/dev/null)
+    for ((i = 0; i < ${#flat[@]}; i += 2)); do
+        dir=${flat[i + 1]}
+        [[ -n $dir ]] || continue
+        [[ $dir == '~'* ]] && dir=$HOME${dir:1}
+        profile_names+=("${flat[i]}")
+        profile_dirs+=("$dir")
+    done
+fi
 # Nothing configured: the directory Claude Code keeps its own account in, so
 # running this by hand still shows something. Only that one - any other path is
 # somebody's choice, and guessing at it is what this replaced.
 # Only when nothing was handed over at all. An empty list is an answer - every
 # account turned off, or the last one removed - and answering it with a
 # directory nobody asked for is how "no accounts" became unreachable.
-if test (count $profile_dirs) -eq 0 -a -z "$CLAUDE_PROFILES"
-    set profile_names default
-    set profile_dirs $HOME/.claude
-end
+if ((${#profile_dirs[@]} == 0)) && [[ -z $CLAUDE_PROFILES ]]; then
+    profile_names=(default)
+    profile_dirs=("$HOME/.claude")
+fi
 
 # One profile's bars, or the reason there are none. Prints a JSON object.
-function __cu_profile -a id name dir endpoint
-    set -l credentials $dir/.credentials.json
+__cu_profile() {
+    local id=$1 name=$2 dir=$3 endpoint=$4
+    local credentials=$dir/.credentials.json
 
-    if not test -r $credentials
-        jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "absent", bars: []}'
+    if [[ ! -r $credentials ]]; then
+        jq -n --arg id "$id" --arg name "$name" '{id: $id, name: $name, state: "absent", bars: []}'
         return
-    end
+    fi
 
-    set -l token (jq -r '.claudeAiOauth.accessToken // empty' $credentials 2>/dev/null)
-    set -l expires (jq -r '.claudeAiOauth.expiresAt // empty' $credentials 2>/dev/null)
+    local token expires
+    token=$(jq -r '.claudeAiOauth.accessToken // empty' "$credentials" 2>/dev/null)
+    expires=$(jq -r '.claudeAiOauth.expiresAt // empty' "$credentials" 2>/dev/null)
 
-    if test -z "$token"
-        jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "absent", bars: []}'
+    if [[ -z $token ]]; then
+        jq -n --arg id "$id" --arg name "$name" '{id: $id, name: $name, state: "absent", bars: []}'
         return
-    end
+    fi
 
     # A token past its expiry would just come back 401. Saying so up front is
     # both faster and a better message than "the request failed".
-    if test -n "$expires"
-        set -l now_ms (date +%s)000
-        if test "$expires" -lt "$now_ms" 2>/dev/null
-            jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "expired", bars: []}'
+    if [[ -n $expires ]]; then
+        local now_ms sign='' magnitude=$expires
+        now_ms=$(date +%s)000
+        [[ $magnitude == -* ]] && sign=- magnitude=${magnitude#-}
+        if [[ $magnitude =~ ^[0-9]{1,18}$ ]] && ((${sign}10#$magnitude < now_ms)); then
+            jq -n --arg id "$id" --arg name "$name" '{id: $id, name: $name, state: "expired", bars: []}'
             return
-        end
-    end
+        fi
+    fi
 
-    set -l body
-    if test -n "$CLAUDE_USAGE_FIXTURE"
-        set body (string collect <$CLAUDE_USAGE_FIXTURE 2>/dev/null)
+    local body
+    if [[ -n $CLAUDE_USAGE_FIXTURE ]]; then
+        body=$(cat -- "$CLAUDE_USAGE_FIXTURE" 2>/dev/null)
     else
         # --config on stdin keeps the token out of argv, where every other
         # process on the machine could read it.
@@ -88,19 +101,19 @@ function __cu_profile -a id name dir endpoint
         # object, which has no `limits` key and so parsed cleanly as "this plan
         # has no limits" - a rate-limited request looked exactly like an empty
         # plan. With it, curl writes nothing and this reports the failure.
-        set body (printf 'url = "%s"\nheader = "Authorization: Bearer %s"\nheader = "anthropic-beta: oauth-2025-04-20"\nheader = "Content-Type: application/json"\n' \
-            $endpoint $token | curl --silent --show-error --fail --max-time 8 --config - 2>/dev/null | string collect)
-    end
+        body=$(printf 'url = "%s"\nheader = "Authorization: Bearer %s"\nheader = "anthropic-beta: oauth-2025-04-20"\nheader = "Content-Type: application/json"\n' \
+            "$endpoint" "$token" | curl --silent --show-error --fail --max-time 8 --config - 2>/dev/null)
+    fi
 
-    if test -z "$body"
-        jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "error", bars: []}'
+    if [[ -z $body ]]; then
+        jq -n --arg id "$id" --arg name "$name" '{id: $id, name: $name, state: "error", bars: []}'
         return
-    end
+    fi
 
     # `limits[]` already carries percent, severity and reset time per limit, and
     # names the model a scoped limit belongs to - so the bars on offer are
     # whatever the plan actually has, not a hardcoded three.
-    echo $body | jq -c --arg id $id --arg name $name '
+    printf '%s\n' "$body" | jq -c --arg id "$id" --arg name "$name" '
         # A body with no `limits` array at all is an error object, not a plan
         # without limits; only a real (possibly empty) array counts as ok.
         if (.limits | type) != "array" then {id: $id, name: $name, state: "error", bars: []} else
@@ -127,15 +140,14 @@ function __cu_profile -a id name dir endpoint
                     resetsAt: .resets_at,
                     active: (.is_active == true)
                   } ]
-        } end' 2>/dev/null
+        } end' 2>/dev/null ||
+        jq -n --arg id "$id" --arg name "$name" '{id: $id, name: $name, state: "error", bars: []}'
+}
 
-    or jq -n --arg id $id --arg name $name '{id: $id, name: $name, state: "error", bars: []}'
-end
-
-set -l parts
-for i in (seq (count $profile_dirs))
-    set -a parts (__cu_profile $profile_dirs[$i] $profile_names[$i] $profile_dirs[$i] $endpoint)
-end
+parts=()
+for i in "${!profile_dirs[@]}"; do
+    parts+=("$(__cu_profile "${profile_dirs[i]}" "${profile_names[i]}" "${profile_dirs[i]}" "$endpoint")")
+done
 
 # ─── OMP ────────────────────────────────────────────────────────────────────
 #
@@ -152,81 +164,86 @@ end
 # systemd user manager to hold it to that, omp is not run at all: the row says
 # so instead of running something unbounded in the background.
 
-function __cu_omp_row -a group name state
-    jq -nc --arg id $group --arg name $name --arg state $state \
+__cu_omp_row() {
+    jq -nc --arg id "$1" --arg name "$2" --arg state "$3" \
         '{id: $id, group: $id, agent: "omp", name: $name, state: $state, bars: []}'
-end
+}
 
-function __cu_omp_bin
+__cu_omp_bin() {
     # The panel's $PATH is the session's, which need not include where an
     # installer put omp - so the usual places are tried too.
-    set -l candidates (command -s omp) $HOME/.local/bin/omp $HOME/.bun/bin/omp
-    test -n "$CLAUDE_USAGE_OMP_BIN"; and set candidates $CLAUDE_USAGE_OMP_BIN
-    for candidate in $candidates
-        if test -x $candidate
-            echo $candidate
+    local candidate
+    local -a candidates=()
+    candidate=$(type -P omp) && candidates+=("$candidate")
+    candidates+=("$HOME/.local/bin/omp" "$HOME/.bun/bin/omp")
+    [[ -n $CLAUDE_USAGE_OMP_BIN ]] && candidates=("$CLAUDE_USAGE_OMP_BIN")
+    for candidate in "${candidates[@]}"; do
+        if [[ -x $candidate ]]; then
+            echo "$candidate"
             return
-        end
-    end
+        fi
+    done
     return 1
-end
+}
 
-if test "$CLAUDE_USAGE_OMP" != 0
+if [[ $CLAUDE_USAGE_OMP != 0 ]]; then
     # Agent directories that exist, with the --profile each one needs.
-    set -l groups
-    set -l labels
-    set -l profile_args
-    if test -d $HOME/.omp/agent
-        set -a groups omp:$HOME/.omp/agent
-        set -a labels OMP
-        set -a profile_args ""
-    end
-    set -l named $HOME/.omp/profiles/*/agent
-    for dir in $named
-        test -d $dir; or continue
-        set -l profile (path basename (path dirname $dir))
-        set -a groups omp:$dir
-        set -a labels "OMP $profile"
-        set -a profile_args $profile
-    end
+    groups=()
+    labels=()
+    profile_args=()
+    if [[ -d $HOME/.omp/agent ]]; then
+        groups+=("omp:$HOME/.omp/agent")
+        labels+=(OMP)
+        profile_args+=("")
+    fi
+    for dir in "$HOME"/.omp/profiles/*/agent; do
+        [[ -d $dir ]] || continue
+        profile=${dir%/agent}
+        profile=${profile##*/}
+        groups+=("omp:$dir")
+        labels+=("OMP $profile")
+        profile_args+=("$profile")
+    done
 
-    set -l omp_bin (__cu_omp_bin)
-    set -l systemd_run systemd-run
-    test -n "$CLAUDE_USAGE_SYSTEMD_RUN"; and set systemd_run $CLAUDE_USAGE_SYSTEMD_RUN
-    set -l capped false
-    if command -q $systemd_run; and test -n "$XDG_RUNTIME_DIR" -a -S "$XDG_RUNTIME_DIR/systemd/private"
-        set capped true
-    end
+    omp_bin=$(__cu_omp_bin)
+    systemd_run=systemd-run
+    [[ -n $CLAUDE_USAGE_SYSTEMD_RUN ]] && systemd_run=$CLAUDE_USAGE_SYSTEMD_RUN
+    capped=false
+    if command -v "$systemd_run" >/dev/null 2>&1 &&
+        [[ -n $XDG_RUNTIME_DIR && -S $XDG_RUNTIME_DIR/systemd/private ]]; then
+        capped=true
+    fi
     # Absolute, because of the `cd /` below.
-    set -l program (path resolve (status dirname)/omp-usage.jq)
+    script_dir=${BASH_SOURCE[0]%/*}
+    [[ $script_dir == "${BASH_SOURCE[0]}" ]] && script_dir=.
+    program=$(realpath -m -- "$script_dir/omp-usage.jq")
 
     # No omp installed means nothing to ask, whatever ~/.omp holds.
-    if test (count $groups) -gt 0 -a -n "$omp_bin"
+    if ((${#groups[@]} > 0)) && [[ -n $omp_bin ]]; then
         # Away from any project directory, so no project's .omp settings apply.
-        cd /
-        for i in (seq (count $groups))
-            if test $capped != true
-                set -a parts (__cu_omp_row $groups[$i] $labels[$i] uncapped)
+        cd / || exit 1
+        for i in "${!groups[@]}"; do
+            if [[ $capped != true ]]; then
+                parts+=("$(__cu_omp_row "${groups[i]}" "${labels[i]}" uncapped)")
                 continue
-            end
-            set -l profile_flag
-            test -n "$profile_args[$i]"; and set profile_flag --profile $profile_args[$i]
-            set -l report (timeout -k 2 15 $systemd_run --user --scope --quiet --collect \
-                    -p MemoryMax=512M -p MemorySwapMax=0 -p TasksMax=64 -- \
-                    $omp_bin $profile_flag usage --json --provider anthropic --no-extensions \
-                    </dev/null 2>/dev/null | head -c 1048576 | string collect)
-            set -l rows
-            if test -n "$report"
-                set rows (printf '%s' $report | jq -c --arg group $groups[$i] --arg name $labels[$i] \
-                    -f $program 2>/dev/null)
-                or set rows (__cu_omp_row $groups[$i] $labels[$i] error)
+            fi
+            profile_flag=()
+            [[ -n ${profile_args[i]} ]] && profile_flag=(--profile "${profile_args[i]}")
+            report=$(timeout -k 2 15 "$systemd_run" --user --scope --quiet --collect \
+                -p MemoryMax=512M -p MemorySwapMax=0 -p TasksMax=64 -- \
+                "$omp_bin" "${profile_flag[@]}" usage --json --provider anthropic --no-extensions \
+                </dev/null 2>/dev/null | head -c 1048576)
+            if [[ -n $report ]]; then
+                rows=$(printf '%s' "$report" | jq -c --arg group "${groups[i]}" --arg name "${labels[i]}" \
+                    -f "$program" 2>/dev/null) ||
+                    rows=$(__cu_omp_row "${groups[i]}" "${labels[i]}" error)
             else
-                set rows (__cu_omp_row $groups[$i] $labels[$i] error)
-            end
-            set -a parts $rows
-        end
-    end
-end
+                rows=$(__cu_omp_row "${groups[i]}" "${labels[i]}" error)
+            fi
+            parts+=("$rows")
+        done
+    fi
+fi
 
-set -l now (date +%s)000
-printf '%s\n' $parts | jq -s -c --argjson now $now '{fetchedAt: $now, profiles: .}'
+now=$(date +%s)000
+printf '%s\n' "${parts[@]}" | jq -s -c --argjson now "$now" '{fetchedAt: $now, profiles: .}'
