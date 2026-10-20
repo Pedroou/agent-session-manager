@@ -8,7 +8,7 @@
         "Category": "System Information",
         "License": "MIT",
         "Version": "1.0.0",
-        "Website": "https://github.com/Pedroou/claude-sessions-widget",
+        "Website": "https://github.com/Pedroou/agent-session-manager",
         "Authors": [
             {
                 "Name": "Pedro Guimarães Ourique",
@@ -16,7 +16,7 @@
                 "Website": "https://github.com/Pedroou"
             }
         ],
-        "BugReportUrl": "https://github.com/Pedroou/claude-sessions-widget/issues"
+        "BugReportUrl": "https://github.com/Pedroou/agent-session-manager/issues"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }

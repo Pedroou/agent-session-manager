@@ -9,7 +9,7 @@
 <p>
 <img alt="KDE Plasma 6" src="https://img.shields.io/badge/KDE_Plasma-6-1d99f3?style=flat-square&logo=kde&logoColor=white&labelColor=2d333b">
 <img alt="QML and fish" src="https://img.shields.io/badge/QML_%2B_fish-41cd52?style=flat-square&logo=qt&logoColor=white&labelColor=2d333b">
-<a href="https://github.com/Pedroou/claude-sessions-widget/actions/workflows/tests.yml"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/Pedroou/claude-sessions-widget/tests.yml?branch=main&style=flat-square&label=tests&labelColor=2d333b"></a>
+<a href="https://github.com/Pedroou/agent-session-manager/actions/workflows/tests.yml"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/Pedroou/agent-session-manager/tests.yml?branch=main&style=flat-square&label=tests&labelColor=2d333b"></a>
 <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue?style=flat-square&labelColor=2d333b"></a>
 </p>
 
@@ -119,8 +119,8 @@ Requires **Plasma 6**, **fish 3.5+**, `jq`, `curl`, `timeout` and `kpackagetool6
 session, which is what keeps `omp` to its memory cap.
 
 ```fish
-git clone https://github.com/Pedroou/claude-sessions-widget
-cd claude-sessions-widget
+git clone https://github.com/Pedroou/agent-session-manager
+cd agent-session-manager
 ./install.fish
 ```
 
