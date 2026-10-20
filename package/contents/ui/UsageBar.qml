@@ -28,6 +28,23 @@ RowLayout {
         }
     }
 
+    // When the shown limit resets, plus how old the reading is if it is a kept
+    // one. The row this bar sits in shows it on hover - the whole row, not just
+    // the number, since the row is what lights up under the pointer.
+    readonly property string hint: {
+        if (!bar || message !== "") {
+            return ""
+        }
+        var text = Usage.resetText(bar.resetsAt, now)
+        if (stale) {
+            var age = Sessions.age(since, now)
+            var note = age ? i18n("couldn't refresh - reading is %1 old", age)
+                          : i18n("couldn't refresh")
+            return text ? text + " · " + note : note
+        }
+        return text
+    }
+
     spacing: Kirigami.Units.smallSpacing
 
     PlasmaComponents3.Label {
@@ -101,26 +118,5 @@ RowLayout {
         color: usage.fillColor
         Layout.minimumWidth: Kirigami.Units.gridUnit * 1.6
         horizontalAlignment: Text.AlignRight
-
-        HoverHandler {
-            id: percentHover
-        }
-
-        PlasmaComponents3.ToolTip.text: {
-            if (!usage.bar) {
-                return ""
-            }
-            var text = Usage.resetText(usage.bar.resetsAt, usage.now)
-            if (usage.stale) {
-                var age = Sessions.age(usage.since, usage.now)
-                var note = age ? i18n("couldn't refresh - reading is %1 old", age)
-                              : i18n("couldn't refresh")
-                return text ? text + " · " + note : note
-            }
-            return text
-        }
-        PlasmaComponents3.ToolTip.visible: percentHover.hovered
-                                           && PlasmaComponents3.ToolTip.text !== ""
-        PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
     }
 }

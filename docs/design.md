@@ -219,8 +219,9 @@ When a fetch does fail, the profile keeps the bars it had rather than blanking:
 the endpoint rate-limits, and a reading that was right a minute ago beats no
 reading at all. Only an `error` is carried forward like this. `absent` and
 `expired` are real answers about the account, and hiding those behind a stale bar
-would be a lie rather than a kindness. The percentage's tooltip says how old a
-kept reading is.
+would be a lie rather than a kindness. Hovering an account's row says when the
+limit it shows resets - "resets in 2h 14m", ticking down while the popup is open -
+and, for a kept reading, how old it is.
 
 #### OMP's logins
 

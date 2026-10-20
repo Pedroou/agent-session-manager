@@ -119,6 +119,13 @@ ColumnLayout {
                     id: rowHover
                 }
 
+                // Not over the limit picker: it has a tooltip of its own, and two
+                // at once would stack.
+                PlasmaComponents3.ToolTip.text: limit.hint
+                PlasmaComponents3.ToolTip.visible: rowHover.hovered && !picker.hovered
+                                                   && !barMenu.opened && limit.hint !== ""
+                PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
+
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
@@ -173,6 +180,7 @@ ColumnLayout {
                     // ones not currently selected, so you can set them up
                     // without switching to them first.
                     PlasmaComponents3.ToolButton {
+                        id: picker
                         // Not another chevron: one arrow already means "this is
                         // the selected account", and a second one beside it read
                         // as a repeat rather than as a different control. An
@@ -217,6 +225,7 @@ ColumnLayout {
                     }
 
                     UsageBar {
+                        id: limit
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignVCenter
                         bar: profileRow.bar
