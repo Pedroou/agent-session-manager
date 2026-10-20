@@ -51,7 +51,7 @@ set -l id (jq -r '.KPlugin.Id' $metadata)
 function __newer -a a b # is $b newer than $a?
     set -l left (string split '.' -- $a)
     set -l right (string split '.' -- $b)
-    for i in (seq (math (max (count $left) (count $right))))
+    for i in (seq (math "max("(count $left)", "(count $right)")"))
         set -l l 0
         set -l r 0
         test (count $left) -ge $i; and set l $left[$i]
