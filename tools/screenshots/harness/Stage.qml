@@ -301,6 +301,7 @@ Item {
         var row = ""
         var detail = ""
         var profile = ""
+        var nameHit = ""
         if (pointerShown) {
             var hits = []
             collectHits(canvas, hits)
@@ -312,12 +313,15 @@ Item {
                     detail = name.substring(7)
                 } else if (name.indexOf("profile:") === 0) {
                     profile = name.substring(8)
+                } else if (name.indexOf("name:") === 0) {
+                    nameHit = name.substring(5)
                 }
             }
         }
         widget.demoHoverSession = row
         widget.demoHoverDetail = detail
         widget.demoHoverProfile = profile
+        widget.demoHoverName = nameHit
     }
 
     function moveTo(name, fx, fy, ms) {
@@ -585,7 +589,8 @@ Item {
                  sessionId: "11111111-2222-3333-4444-700600000000",
                  kind: "interactive", status: "busy", state: "working",
                  label: "Working", detail: "", startedAt: frozenNow - 40000,
-                 statusUpdatedAt: frozenNow - 6000, version: "2.1.263", rank: 3})
+                 statusUpdatedAt: frozenNow - 6000, version: "2.1.263", rank: 3,
+                 model: "claude-opus-5-5", contextTokens: 24000})
             stage.widget.demoWorkPercent = 92
         })
         beat(function () {
@@ -621,16 +626,21 @@ Item {
         s.push([null, 600])
     }
 
-    // Renaming a session, then ending one.
+    // Pointing at a session's name - it underlines, because a click jumps to
+    // its terminal - then renaming a session, then ending one.
     function buildActionsScript(s) {
         var docs = sid("docs-site-b2")
         var api = sid("api-gateway-c1")
+        var check = sid("checkout-flow-7")
         s.push([function () {
             stage.widget.demoWorkPercent = 61
             stage.widget.demoPersonalPercent = 18
             park()
             grabber.start()
         }, 700])
+        s.push([function () { moveTo("name:" + check, 0.55, 0.55, 700) }, 900])
+        s.push([function () { pointer.caption = "click: jump to its terminal" }, 1800])
+        s.push([function () { pointer.caption = "" }, 200])
         s.push([function () { moveTo("row:" + docs, 0.45, 0.5, 700) }, 1000])
         s.push([function () { moveTo("rename:" + docs, 0.5, 0.5, 520) }, 620])
         s.push([function () {

@@ -20,36 +20,48 @@ taking the picture is reachable.
 
 ## Running it
 
-```fish
+```sh
+tools/screenshots/build-all.sh
+```
+
+That fabricates the home and produces every image, in two sets:
+
+| where | size | for |
+|---|---|---|
+| `docs/screenshots/` | each the natural size of what it shows, at 2x | the README and GitHub's social card |
+| `docs/screenshots/store/` | every picture 1920x1080, rendered at 2.5x and centred | the KDE Store gallery |
+
+The store set is one size because the gallery shows pictures one after another
+in the same box, and five sizes made it jump as you paged through. 1920x1080 is
+the size the most-downloaded Plasma 6 widgets use when they pick a size on
+purpose (the rest upload raw screenshots of every shape), and the 16:9 that
+Flathub and Steam ask screenshots to be. The frames are rendered at a scale that
+already fits, and `pad-frames.py` only adds the stage's own background colour
+around them - nothing is resampled. The panel still is README-only.
+
+Each capture opens a window on the current display: the rig renders through
+xcb, see below. One scenario at a time, by hand:
+
+```sh
 tools/screenshots/build-home.fish            # fabricate the home
-tools/screenshots/capture.sh panel 50 9      # the panel still
-tools/screenshots/capture.sh demo 50 2       # the headline recording
-tools/screenshots/capture.sh usage 60 2
-tools/screenshots/capture.sh actions 60 2
-tools/screenshots/capture.sh copy 60 2
+tools/screenshots/capture.sh demo 50 2       # <scenario> <frame-ms> <scale>
+tools/screenshots/assemble.sh home/frames demo.gif 1 200  # frames, fps, colours
 ```
 
-Frames land in `tools/screenshots/home/frames/`. Stills are written there
-directly; recordings are assembled with:
-
-```fish
-cp home/frames/f0006.png home/frames/f0007.png            # hold the last frame
-tools/screenshots/assemble.sh home/frames demo.gif 1 200  # 1 fps, 200 colours
-tools/screenshots/assemble.sh home/frames usage.gif 16.667 200
-```
-
-`capture.sh <scenario> <frame-ms> <scale>`. The scale is the device pixel ratio
-and it is the whole zoom - see below.
+Scenarios: `panel`, `demo`, `usage`, `actions` (jump, rename, end) and `copy`.
+The scale is the device pixel ratio and it is the whole zoom - see below.
 
 ## What each piece does
 
 | file | what it is |
 |---|---|
-| `build-home.fish` | fabricates the home: five sessions, their `/proc` entries, git repositories, two accounts, a transcript ending on a failed turn |
+| `build-all.sh` | every image, both sets, in one go |
+| `build-home.fish` | fabricates the home: five sessions, their `/proc` entries, transcripts giving each a model and a context fill, git repositories, two accounts, a transcript ending on a failed turn |
 | `patch-package.py` | copies `package/` into the home and edits the copy so a script can drive it. `package/` is never touched |
 | `harness/Stage.qml` | the stage: a real `CompactView` and `FullView`, a scripted timeline per scenario, and the frame grabber |
 | `harness/DemoCursor.qml` | the drawn pointer. `grabToImage` renders the item, not the screen, so the real cursor cannot appear |
 | `capture.sh` | runs one scenario under `bwrap` |
+| `pad-frames.py` | centres frames on the store's 1920x1080 canvas |
 | `assemble.sh` | frames to GIF |
 
 Every replacement in `patch-package.py` is asserted to match exactly once, so a
@@ -106,16 +118,19 @@ or late was visible.
 
 ## The social card
 
-`preview.png` is a layout rather than a scenario, so it has its own script:
+`preview.png` is a layout rather than a scenario, so it has its own script,
+which `build-all.sh` runs; `--store` builds the gallery's copy, the same card at
+1.5x centred on 1920x1080:
 
-```fish
-tools/screenshots/build-preview.py
+```sh
+tools/screenshots/build-preview.py [--store]
 ```
 
 It captures the widget fresh at 61% and takes the popup from the first frame of
-`demo.gif`. Both of those matter: the committed `panel.png` is deliberately at
-93% so the README can show the bar red, and a red bar beside a popup reading 61%
-reads as a mistake rather than as a different moment.
+`demo.gif` (the store's own, for `--store`). Both of those matter: the committed
+`panel.png` is deliberately at 93% so the README can show the bar red, and a red
+bar beside a popup reading 61% reads as a mistake rather than as a different
+moment.
 
 ## Not covered here
 

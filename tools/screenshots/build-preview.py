@@ -11,7 +11,12 @@ popup reading 61% looks like a mistake rather than a different moment.
 
 Run it after retaking the screenshots. Needs a display, because it captures.
 
-Usage: build-preview.py
+With --store it builds the KDE Store's copy instead: the same card at 1.5x,
+centred on a 1920x1080 canvas like every other picture in the store gallery,
+with the popup taken from the store's own (larger) demo recording so nothing is
+upscaled.
+
+Usage: build-preview.py [--store]
 """
 import os
 import pathlib
@@ -62,7 +67,16 @@ def ink_box(im, bg, tol=18):
 
 
 def main():
-    card = Image.new("RGB", (W, H), BG)
+    store = "--store" in sys.argv[1:]
+    k = 1.5 if store else 1.0
+    out_w, out_h = (1920, 1080) if store else (W, H)
+    # The card's own height at this scale, centred vertically in the output.
+    dy = (out_h - round(H * k)) // 2
+
+    def at(x, y):
+        return (round(x * k), round(y * k) + dy)
+
+    card = Image.new("RGB", (out_w, out_h), BG)
     draw = ImageDraw.Draw(card)
 
     # Captured rather than read off disk, at the percentage the popup shows.
@@ -76,29 +90,36 @@ def main():
     # panel shot happens to carry.
     panel = Image.open(pathlib.Path(home) / "frames/panel.png").convert("RGB")
     panel = panel.crop(ink_box(panel, BG))
-    scale = 142 / panel.height
-    panel = panel.resize((round(panel.width * scale), 142), Image.LANCZOS)
-    card.paste(panel, (WIDGET_LEFT, WIDGET_TOP))
+    panel_h = round(142 * k)
+    panel = panel.resize((round(panel.width * panel_h / panel.height), panel_h), Image.LANCZOS)
+    card.paste(panel, at(WIDGET_LEFT, WIDGET_TOP))
 
     # The popup, taken from the first frame of the demo recording rather than
     # from a still of its own - it is the same render, and one fewer asset to
     # keep in step.
-    frame = next(iter(ImageSequence.Iterator(Image.open(SHOTS / "demo.gif")))).convert("RGB")
+    demo = SHOTS / ("store/demo.gif" if store else "demo.gif")
+    frame = next(iter(ImageSequence.Iterator(Image.open(demo)))).convert("RGB")
     fw, fh = frame.size
     def is_card(p): return abs(p[0]-54) + abs(p[1]-54) + abs(p[2]-54) < 30
-    rows = [y for y in range(fh) if is_card(frame.getpixel((fw // 2, y)))]
+    # Rows that are mostly card colour are the popup. Its text breaks any one
+    # column, and the panel widget above it has grey of its own (its usage
+    # track) close enough to count - but only a few pixels of it per row.
+    card_rows = [y for y in range(0, fh)
+                 if sum(is_card(frame.getpixel((x, y))) for x in range(0, fw, 8)) * 8 > fw * 0.3]
+    rows = [card_rows[0], card_rows[-1]]
     cols = [x for x in range(fw) if is_card(frame.getpixel((x, (rows[0] + rows[-1]) // 2)))]
     popup = frame.crop((cols[0], rows[0], cols[-1] + 1, rows[-1] + 1))
-    popup = popup.resize((POPUP_W, round(popup.height * POPUP_W / popup.width)), Image.LANCZOS)
-    card.paste(popup, (POPUP_X, POPUP_Y))
+    popup_w = round(POPUP_W * k)
+    popup = popup.resize((popup_w, round(popup.height * popup_w / popup.width)), Image.LANCZOS)
+    card.paste(popup, at(POPUP_X, POPUP_Y))
 
-    draw.text((TITLE_X, TITLE_Y), TITLE, font=font("Noto Sans:bold", 52), fill=TEXT)
-    tag = font("Noto Sans", 25)
+    draw.text(at(TITLE_X, TITLE_Y), TITLE, font=font("Noto Sans:bold", round(52 * k)), fill=TEXT)
+    tag = font("Noto Sans", round(25 * k))
     for i, line in enumerate(TAGLINE):
-        draw.text((TITLE_X + 1, TAGLINE_Y + i * 34), line, font=tag, fill=DIM)
-    draw.text((TITLE_X + 1, FOOTER_Y), FOOTER, font=font("Noto Sans", 19), fill=DIM)
+        draw.text(at(TITLE_X + 1, TAGLINE_Y + i * 34), line, font=tag, fill=DIM)
+    draw.text(at(TITLE_X + 1, FOOTER_Y), FOOTER, font=font("Noto Sans", round(19 * k)), fill=DIM)
 
-    out = SHOTS / "preview.png"
+    out = SHOTS / ("store/preview.png" if store else "preview.png")
     card.save(out)
     print(f"{out}  {card.size[0]}x{card.size[1]}  "
           f"{out.stat().st_size // 1024} KiB")

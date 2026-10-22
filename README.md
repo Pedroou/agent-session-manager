@@ -9,6 +9,7 @@
 <p>
 <img alt="KDE Plasma 6" src="https://img.shields.io/badge/KDE_Plasma-6-1d99f3?style=flat-square&logo=kde&logoColor=white&labelColor=2d333b">
 <img alt="QML and bash" src="https://img.shields.io/badge/QML_%2B_bash-41cd52?style=flat-square&logo=qt&logoColor=white&labelColor=2d333b">
+<a href="https://store.kde.org/p/2379987/"><img alt="KDE Store" src="https://img.shields.io/badge/KDE_Store-Agent_Session_Manager-1d99f3?style=flat-square&logo=kde&logoColor=white&labelColor=2d333b"></a>
 <a href="https://github.com/Pedroou/agent-session-manager/actions/workflows/tests.yml"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/Pedroou/agent-session-manager/tests.yml?branch=main&style=flat-square&label=tests&labelColor=2d333b"></a>
 <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue?style=flat-square&labelColor=2d333b"></a>
 </p>
@@ -97,8 +98,8 @@ and a close button that asks before ending the session. The eye in the header
 blanks every name and path for screen-sharing.
 
 <div align="center">
-<img src="docs/screenshots/actions.gif" alt="A session being renamed in the widget, then another one ended" width="660">
-<p><sub>Rename one, or end one - the second click is the confirmation</sub></p>
+<img src="docs/screenshots/actions.gif" alt="A session's name underlined under the pointer, then a session renamed, then another one ended" width="660">
+<p><sub>The name is the link to the session; rename one, or end one - the second click is the confirmation</sub></p>
 </div>
 
 ## Plan usage
@@ -124,9 +125,16 @@ signed in at all.
 
 ## Install
 
-Requires **Plasma 6**, `bash`, `jq`, `curl`, `timeout` and `kpackagetool6`.
-`install.sh` checks for all of them. OMP's usage rows also need a systemd user
-session, which is what keeps `omp` to its memory cap.
+Requires **Plasma 6**, `bash`, `jq`, `curl` and `timeout`. OMP's usage rows also
+need a systemd user session, which is what keeps `omp` to its memory cap.
+
+**From the KDE Store.** Right-click your panel → **Add or Manage Widgets…** →
+**Get New Widgets** → **Download New Plasma Widgets**, search **Agent Session
+Manager** and install it. The listing is at
+[store.kde.org/p/2379987](https://store.kde.org/p/2379987/).
+
+**From source.** `install.sh` checks for every requirement, plus
+`kpackagetool6`, before it installs:
 
 ```sh
 git clone https://github.com/Pedroou/agent-session-manager
@@ -134,8 +142,8 @@ cd agent-session-manager
 ./install.sh
 ```
 
-Then right-click your panel → **Add or Manage Widgets…** → search **Agent
-Session Manager**.
+Either way, add it with right-click on the panel → **Add or Manage Widgets…** →
+search **Agent Session Manager**.
 
 Upgrading while the widget is already on the panel needs a shell restart, since
 Plasma caches applet QML. `install.sh` prints the command.

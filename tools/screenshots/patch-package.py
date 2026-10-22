@@ -57,6 +57,7 @@ def main(home, scenario, frame_ms, panel_percent=93):
          "    property string demoHoverSession: \"\"\n"
          "    property string demoHoverDetail: \"\"\n"
          "    property string demoHoverProfile: \"\"\n"
+         "    property string demoHoverName: \"\"\n"
          "    property string demoRenameText: \"\"\n"
          "    property int demoWorkPercent: -1\n"
          "    property int demoPersonalPercent: -1\n"
@@ -103,6 +104,12 @@ def main(home, scenario, frame_ms, panel_percent=93):
          "        opacity: (rowHover.hovered || row.demoHover) ? 0.09 : 0"),
         ("            visible: rowHover.hovered && !row.renaming",
          "            visible: (rowHover.hovered || row.demoHover) && !row.renaming"),
+        # The name is a link; the drawn pointer has to be able to underline it.
+        ("                font.underline: nameHover.hovered\n",
+         "                objectName: \"name:\" + row.session.sessionId\n"
+         "                font.underline: nameHover.hovered\n"
+         "                    || (row.widget !== null && row.widget.demoHoverName\n"
+         "                                                === row.session.sessionId)\n"),
         ("                icon.name: \"edit-rename\"",
          "                objectName: \"rename:\" + row.session.sessionId\n"
          "                icon.name: \"edit-rename\""),

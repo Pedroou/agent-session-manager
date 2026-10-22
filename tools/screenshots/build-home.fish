@@ -24,7 +24,7 @@ mkdir -p $home/.claude/sessions $home/.claude-personal/sessions \
 # widget's `now` to the same number, so "34m" is 34m in every capture whenever
 # it runs - a screenshot that quietly re-times itself is a screenshot you cannot
 # retake to match the others.
-set -g NOW 1790196966000
+set -g NOW 1792627200000
 
 for r in checkout-flow:main billing-api:release/2.4 docs-site:main \
          api-gateway:feature/rate-limits infra-scripts:main
@@ -77,12 +77,36 @@ printf '/bin/bash\0-c\0source /snap.sh || true && eval \'npm run build\' < /dev/
     >$home/proc/70031/cmdline
 echo -n "70031 " >$home/proc/7003/task/7003/children
 
-# Error: an idle session whose transcript ends on a failed turn.
+# The model and context line comes from the newest assistant reply in each
+# transcript: its model id, and the tokens its request carried. One reply per
+# session is enough, spread so the bars read at different fills and models.
+function reply -a pid model tokens
+    mkdir -p $home/.claude/projects/-home-dev-code
+    jq -n -c --arg m $model --argjson t $tokens '
+        {type: "assistant", isSidechain: false,
+         message: {model: $m, role: "assistant", content: [{type: "text", text: "ok"}],
+                   usage: {input_tokens: 4, cache_creation_input_tokens: 1200,
+                           cache_read_input_tokens: ($t - 1204), output_tokens: 300}}}' \
+        >>$home/.claude/projects/-home-dev-code/11111111-2222-3333-4444-$pid"00000000".jsonl
+end
+reply 7001 claude-opus-5-5 342000
+reply 7003 claude-sonnet-5-5 118000
+reply 7004 claude-opus-5-5 806000
+reply 7005 claude-haiku-5-5 61000
+
+# Error: an idle session whose transcript ends on a failed turn. The reply
+# before it still says which model the session is on.
 mkdir -p $home/.claude/projects/-home-dev-code-billing-api
-jq -n -c '{type: "assistant", isApiErrorMessage: true,
-           message: {role: "assistant", content: [{type: "text",
-             text: "You have hit your session limit - resets 6:40pm"}]}}' \
+jq -n -c '{type: "assistant", isSidechain: false,
+           message: {model: "claude-fable-5-1", role: "assistant",
+                     content: [{type: "text", text: "ok"}],
+                     usage: {input_tokens: 4, cache_creation_input_tokens: 900,
+                             cache_read_input_tokens: 487000, output_tokens: 200}}}' \
     >$home/.claude/projects/-home-dev-code-billing-api/11111111-2222-3333-4444-700200000000.jsonl
+jq -n -c '{type: "assistant", isApiErrorMessage: true,
+           message: {model: "<synthetic>", role: "assistant", content: [{type: "text",
+             text: "You have hit your session limit - resets 6:40pm"}]}}' \
+    >>$home/.claude/projects/-home-dev-code-billing-api/11111111-2222-3333-4444-700200000000.jsonl
 
 # Both accounts need credentials to exist, and a .claude.json so the settings
 # page's search finds them the way it would on a real machine.
