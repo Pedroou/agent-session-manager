@@ -107,17 +107,12 @@ blanks every name and path for screen-sharing.
 
 At the bottom, how much of your plan each account has used. Pick the limit each
 one tracks - session, weekly, or a model-scoped one - behind the dots on its
-row, and the panel bar follows whichever you chose. Accounts you have not picked
-for show the default, which is the session limit until you change it on the
-Popup page. Until you pick an account, the footer and the panel bar follow the
-first one that has a reading. Opened up, the footer lists accounts most recently
-shown first: the one on screen at the top, the one before it second, and so on.
+row; the panel bar follows the account on screen. Hover a row to see when its
+limit resets.
 
-OMP's Claude logins get a row each, named the way their sessions are - **OMP**,
-or **OMP <profile>** for a named profile. The numbers come from `omp usage`,
-which OMP answers itself, so the widget never reads OMP's logins: a Claude
-account you only ever use through OMP has a usage bar without Claude Code being
-signed in at all.
+OMP's Claude logins get a row each, **OMP** or **OMP <profile>**. Their numbers
+come from `omp usage`, so the widget never reads OMP's logins, and an account
+you only use through OMP has a bar without Claude Code being signed in.
 
 <div align="center">
 <img src="docs/screenshots/usage.gif" alt="The usage footer opened to show both accounts, their bars sliding between readings and changing colour" width="660">
@@ -169,101 +164,46 @@ takes effect:
 
 ### Accounts
 
-On first run the widget looks once for accounts and puts what it finds in the
-list, so there is nothing to set up for the common case and the list always says
-what is actually being read.
+On first run the widget looks once for accounts and lists what it finds, so the
+common case needs no setup.
 
-After that it is the **Accounts** page. Point **Search** at a directory and it
-looks one level down for anything Claude Code has written to - your home
-directory, by default, since `CLAUDE_CONFIG_DIR` is usually pointed at a sibling
-of `~/.claude`.
-
-What it finds is listed but not switched on: results are marked **found** and sit
-there until you press **+**. A search is a question, not an instruction, and
-wiring up every directory it happens to turn up is not an answer you asked for.
-Press **-** on a result to drop it instead. Naming a directory yourself *is* an
-instruction, so that one goes straight in.
-
-Added accounts can be renamed to something you will recognise, switched off
-without being forgotten, or removed.
-
-After that first look, searching only ever happens because you asked. An account
-you remove has to stay removed, and it cannot if something re-runs the search
-behind you - so nothing does, and an empty list means exactly that: nothing is
-watched.
+After that it is the **Accounts** page. **Search** looks one level down a
+directory - your home, by default - for anything Claude Code has written to.
+Results are marked **found** and only watched once you press **+**; a directory
+you type in yourself goes straight in. Accounts can be renamed, switched off, or
+removed, and nothing searches again unless you ask, so a removed account stays
+removed.
 
 ## How it works
 
-Claude Code already publishes most of this. Every running session maintains a
+**Claude Code** already publishes most of this: every running session keeps a
 record at `<config-dir>/sessions/<pid>.json` and rewrites it as its state
-changes, so the widget is a reader of a file the tool already writes.
+changes. The widget reads that, and works out the two states the record lacks:
 
-Two of the six states are **not** in that record and are worked out here:
+- **Running** from the process tree: every Bash tool call is a child shell of
+  the session, and its `cmdline` holds the command.
+- **Error** from the transcript, whose last reply is marked as an API error,
+  trusted only once the session has stopped.
 
-**Running** comes from the process tree. Claude Code executes every Bash tool
-call as a direct child shell of its own process, while its long-lived children
-are MCP servers, which are not shells - so the two never get confused, and the
-command itself is recoverable from the child's `cmdline`.
+Each record is checked against `/proc` - the process must exist and its start
+time must match - because records outlive sessions that were killed, and pids
+get reused. The same check guards ending a session or jumping to it.
 
-**Error** comes from the transcript, whose last assistant entry carries
-`isApiErrorMessage` and a message worth reading. The transcript lags live state
-badly, which is exactly why it is trusted only for a session that has already
-stopped.
+**OMP** keeps no registry, so it goes the other way round: each `omp` process
+holds its transcript open, and the end of that transcript says whether it is
+working, running a command, asking you something, failed, or done.
 
-Records outlive sessions that were killed rather than closed, so each is checked
-the way Claude Code checks its own: the process must exist **and** its start time
-in `/proc` must match the record, which rules out a recycled pid.
+The **model and context** line comes from the same transcripts: each reply
+records its model and how many tokens its request carried, and the context
+window follows from the model. **Jumping** walks up from the session's process to
+the terminal that shows it, picks the tab through Konsole's D-Bus or the pane
+through tmux, and has KWin raise the window.
 
-Every account is read the same way, and an account is only ever a directory:
-`CLAUDE_CONFIG_DIR` is what Claude Code itself uses, so a session's "reopen"
-command is that variable and nothing else - except for `~/.claude`, the one
-value it must never be set to.
-
-**OMP** keeps no registry, so its sessions are found the other way round.
-Every `omp` process in `/proc` is a session (bar its own `__omp_worker`
-helpers), and each holds its transcript open while it writes - so the process's
-fd table says which session it is, and the tail of that transcript says what it
-is doing:
-
-- a prompt or a tool result last means **Working**;
-- a `bash` or `eval` call that has started and has no result yet is
-  **Running**, with the command;
-- an `ask` call in the same position is **Waiting**, with the question;
-- a turn that ended in an error is **Error**, with the message; one that
-  finished, or was interrupted, is **Done**.
-
-OMP writes a marker the moment each tool starts, so unlike Claude Code's
-transcript this one is live. A session that has not written anything yet holds
-no transcript open; it is found through the breadcrumb OMP leaves for its
-terminal, the same file `omp --continue` reads. The resume command is
-`omp --resume <id>`, with `--profile` for a named profile.
-
-**Show OMP sessions**, on the General page, switches all of this off: no
-process scan, no reads, nothing run. On, its cost has fixed ceilings: at most 32
-sessions, and of each transcript at most 4 KiB of its first line and 128 KiB of
-its end. If a command cannot start, for want of memory or anything else, that
-one refresh goes without its OMP rows; nothing is retried and nothing is
-written. Every run of the collector is also held to 1 GiB of address space and
-30 CPU-seconds per process, and stopped after 20 seconds, and the widget never
-starts a run while the same one is still going.
-
-Ending a session from the popup checks first that the process is still the one
-that was listed - its start time in `/proc` has to match - so a pid reused by
-something else since is never signalled.
-
-OMP's plan usage is asked of OMP: `omp usage --json --provider anthropic`, once
-for `~/.omp/agent` and once per named profile, each time plan usage refreshes.
-`omp` is a 200 MB runtime, so it only ever runs inside a transient systemd scope
-that the kernel holds to 512 MB of memory, no swap and 64 tasks - past that it
-alone is killed, inside its scope - and it is stopped after 15 seconds. Without
-a systemd user session to enforce that it is not run at all, and the row says
-so. A failed run keeps the last reading on screen, as a failed Claude Code fetch
-does.
-
-Everything with a decision in it lives in two bash collectors, the two jq
-programs that read OMP, and two Qt-free JavaScript files - all testable without
-a running Plasma shell. The collector suite is itself written in fish, so
-running it needs fish; the widget does not:
+Everything with a decision in it lives in two bash collectors, two jq programs
+and two Qt-free JavaScript files, all tested without a running Plasma shell. The
+collector suite runs the real scripts against a throwaway `$HOME`, `/proc` and
+transcripts; it is written in fish, so running it needs fish - the widget does
+not:
 
 ```fish
 fish --no-config test/test-collectors.fish   # 140 assertions
@@ -271,13 +211,8 @@ node --test test/sessions.test.js            # 39
 node --test test/usage.test.js               # 29
 ```
 
-The collector suite builds a throwaway `$HOME`, a throwaway `/proc` **and** throwaway
-transcripts, then runs the real collectors against them - so a recycled pid, a
-half-written record, an MCP child that is not a command, a command starting
-with `--` that `jq` would otherwise eat as a flag, and an OMP helper process
-that is not a session are covered rather than assumed.
-
-[`docs/design.md`](docs/design.md) is the full write-up, and
+[`docs/design.md`](docs/design.md) is the full write-up - including what each
+collector costs and how `omp` is kept in check - and
 [`docs/limitations.md`](docs/limitations.md) is honest about what it cannot do.
 
 ## Privacy
