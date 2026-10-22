@@ -51,8 +51,16 @@ hold_last() {
 record() {
     local scenario=$1 ms=$2 fps=$3 scale=$4 out=$5 pad=$6
     "$HERE/capture.sh" "$scenario" "$ms" "$scale"
-    [[ $scenario == demo ]] && hold_last
-    [[ $pad == yes ]] && "$HERE/pad-frames.py" "$FRAMES"
+    if ! compgen -G "$FRAMES/f*.png" >/dev/null; then
+        echo "✗ $scenario captured no frames - see $HERE/capture.log" >&2
+        exit 1
+    fi
+    if [[ $scenario == demo ]]; then
+        hold_last
+    fi
+    if [[ $pad == yes ]]; then
+        "$HERE/pad-frames.py" "$FRAMES"
+    fi
     "$HERE/assemble.sh" "$FRAMES" "$out" "$fps" 200
 }
 

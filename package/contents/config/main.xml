@@ -117,7 +117,7 @@
     </entry>
     <entry name="rowContextPercent" type="Bool">
       <label>Show how full each session's context window is, as a percentage.</label>
-      <default>true</default>
+      <default>false</default>
     </entry>
 
     <!-- Plan usage. This is the only part of the widget that talks to the

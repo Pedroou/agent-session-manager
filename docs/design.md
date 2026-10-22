@@ -400,9 +400,9 @@ Claude Code Sessions                    👁  ⟳
 1 waiting for you, 2 running, 1 done
 ──────────────────────────────────────────────
 ▎ checkout-flow-7                     12s Waiting
-▎ checkout-flow - input needed   Opus 5.5 ▬▬▬── 34%
+▎ checkout-flow - input needed       Opus 5.5 ▬▬▬──
 ▎ docs-site-b2      ✎  ✕          4m Running
-▎ docs-site - npm run build    Sonnet 4.5 ▬──── 12%
+▎ docs-site - npm run build        Sonnet 4.5 ▬────
 ──────────────────────────────────────────────
 ▸ work        ▸  Session ███░░░░░░░  11%
 ```
@@ -415,7 +415,9 @@ takes the theme accent until three quarters full, then amber, then red past
 tokens: "224K of 1M tokens of context". There is no "ctx" label: next to a
 model's name a bar can only be one thing. The model, the bar and the percentage
 each have their own switch on the Popup page, since together they make the row
-busier than everyone wants; the line goes away with the last of them.
+busier than everyone wants; the line goes away with the last of them. The
+percentage starts off: the bar already says roughly how full, and the hover
+gives the exact count.
 
 Clicking a session's name takes you to it (see [Jumping to a
 session](#jumping-to-a-session)); the name underlines under the pointer, as a
@@ -607,7 +609,7 @@ All of it resets from one button, at the foot of the General page.
   Profile, Uptime and Directory are not optional: they are what the expansion is
   for. Directory and Repository can be abbreviated to Dir and Repo.
 - **Session rows** - the model, the context bar and the context percentage, each
-  on its own. All on by default.
+  on its own. The model and the bar are on by default, the percentage off.
 - **Hide session names and paths** - the same toggle as the eye in the header.
 
 ## Risks

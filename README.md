@@ -86,8 +86,8 @@ command to drop back into that session.
 
 Under each state sits the model the session is on and a bar for how full its
 context window is, amber past three quarters and red past 90%. Hover it for the
-token count. The model, the bar and the percentage can each be turned off on the
-Popup settings page.
+token count. The model and the bar can each be turned off on the Popup settings
+page, and the exact percentage turned on.
 
 <div align="center">
 <img src="docs/screenshots/copy.gif" alt="A session opened, one of its values clicked to copy it, then the whole row right-clicked" width="660">
