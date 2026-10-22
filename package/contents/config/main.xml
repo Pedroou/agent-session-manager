@@ -105,6 +105,21 @@
       <default>false</default>
     </entry>
 
+    <!-- The model and context line under each session's state. Each part on
+         its own, so the line can be trimmed rather than only kept or dropped. -->
+    <entry name="rowModel" type="Bool">
+      <label>Show the model each session is on.</label>
+      <default>true</default>
+    </entry>
+    <entry name="rowContextBar" type="Bool">
+      <label>Show a bar for how full each session's context window is.</label>
+      <default>true</default>
+    </entry>
+    <entry name="rowContextPercent" type="Bool">
+      <label>Show how full each session's context window is, as a percentage.</label>
+      <default>true</default>
+    </entry>
+
     <!-- Plan usage. This is the only part of the widget that talks to the
          network, so it is the only part with an off switch. -->
     <entry name="showUsage" type="Bool">

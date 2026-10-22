@@ -86,7 +86,8 @@ command to drop back into that session.
 
 Under each state sits the model the session is on and a bar for how full its
 context window is, amber past three quarters and red past 90%. Hover it for the
-token count.
+token count. The model, the bar and the percentage can each be turned off on the
+Popup settings page.
 
 <div align="center">
 <img src="docs/screenshots/copy.gif" alt="A session opened, one of its values clicked to copy it, then the whole row right-clicked" width="660">
@@ -160,7 +161,8 @@ takes effect:
   it, how used the limit must be before it appears, and whether it colours by
   severity.
 - **Popup** - how many sessions it shows before scrolling, which limit plan
-  usage shows by default, which rows an expanded session has, and where the
+  usage shows by default, which of the model, context bar and context
+  percentage a row carries, which rows an expanded session has, and where the
   branch goes.
 - **Accounts** - which config directories to watch.
 - **Colours** - all six status colours.

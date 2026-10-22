@@ -35,6 +35,9 @@ KCM.SimpleKCM {
     property bool cfg_detailVersion: true
     property bool cfg_branchSeparate: false
     property bool cfg_shortLabels: false
+    property bool cfg_rowModel: true
+    property bool cfg_rowContextBar: true
+    property bool cfg_rowContextPercent: true
     property bool cfg_customColors: false
     property color cfg_colorWaiting: Sessions.defaultColor("waiting")
     property color cfg_colorError: Sessions.defaultColor("error")
@@ -72,6 +75,9 @@ KCM.SimpleKCM {
         page.cfg_detailVersion = true
         page.cfg_branchSeparate = false
         page.cfg_shortLabels = false
+        page.cfg_rowModel = true
+        page.cfg_rowContextBar = true
+        page.cfg_rowContextPercent = true
 
         page.cfg_customColors = false
         page.cfg_colorWaiting = Sessions.defaultColor("waiting")

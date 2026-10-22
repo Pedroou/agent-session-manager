@@ -25,6 +25,9 @@ KCM.SimpleKCM {
     property alias cfg_detailVersion: detailVersion.checked
     property bool cfg_branchSeparate: false
     property alias cfg_shortLabels: shortLabels.checked
+    property alias cfg_rowModel: rowModel.checked
+    property alias cfg_rowContextBar: rowContextBar.checked
+    property alias cfg_rowContextPercent: rowContextPercent.checked
 
     Kirigami.FormLayout {
         QQC2.SpinBox {
@@ -114,6 +117,34 @@ KCM.SimpleKCM {
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
             text: i18n("What an account shows until you pick a limit for it behind the dots in the footer. A pick made there wins, and is remembered per account.")
+        }
+
+        Item {
+            Kirigami.FormData.isSection: true
+        }
+
+        QQC2.CheckBox {
+            id: rowModel
+            Kirigami.FormData.label: i18n("Session Rows:")
+            text: i18n("Model")
+        }
+
+        QQC2.CheckBox {
+            id: rowContextBar
+            text: i18n("Context bar")
+        }
+
+        QQC2.CheckBox {
+            id: rowContextPercent
+            text: i18n("Context percentage")
+        }
+
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            color: Kirigami.Theme.disabledTextColor
+            text: i18n("Shown under each session's state. Hover the line for the token count.")
         }
 
         Item {

@@ -354,13 +354,19 @@ Item {
 
             // The model, and how full its context is. Only once there is a reply
             // to read them from: a session nobody has typed into has neither.
+            // Each part can be switched off in the settings; the line goes with
+            // the last of them.
             RowLayout {
                 id: modelLine
                 readonly property string model: Sessions.modelLabel(row.session.model)
                 readonly property int percent: Sessions.contextPercent(row.session)
+                readonly property bool showModel: plasmoid.configuration.rowModel && model !== ""
+                readonly property bool showBar: plasmoid.configuration.rowContextBar && percent >= 0
+                readonly property bool showPercent: plasmoid.configuration.rowContextPercent
+                                                    && percent >= 0
                 Layout.alignment: Qt.AlignRight
                 spacing: Kirigami.Units.smallSpacing
-                visible: model !== ""
+                visible: showModel || showBar || showPercent
 
                 HoverHandler {
                     id: modelHover
@@ -376,6 +382,7 @@ Item {
                 PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay
 
                 PlasmaComponents3.Label {
+                    visible: modelLine.showModel
                     text: modelLine.model
                     font: Kirigami.Theme.smallFont
                     color: Kirigami.Theme.disabledTextColor
@@ -384,7 +391,7 @@ Item {
                 // Siblings rather than parent and child, as in UsageBar: opacity
                 // multiplies down, so a fill inside the faded track would be faded too.
                 Item {
-                    visible: modelLine.percent >= 0
+                    visible: modelLine.showBar
                     Layout.alignment: Qt.AlignVCenter
                     implicitWidth: Kirigami.Units.gridUnit * 3
                     implicitHeight: Math.max(4, Math.round(Kirigami.Units.gridUnit / 3))
@@ -410,7 +417,7 @@ Item {
                 }
 
                 PlasmaComponents3.Label {
-                    visible: modelLine.percent >= 0
+                    visible: modelLine.showPercent
                     text: i18nc("percentage of the context window in use", "%1%", modelLine.percent)
                     font: Kirigami.Theme.smallFont
                     color: Kirigami.Theme.disabledTextColor

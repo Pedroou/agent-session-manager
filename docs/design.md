@@ -413,7 +413,9 @@ is named the way people say it - `claude-opus-5-5` is "Opus 5.5" - and the bar
 takes the theme accent until three quarters full, then amber, then red past
 90%, since that is where a turn starts to risk compaction. Hovering it gives the
 tokens: "224K of 1M tokens of context". There is no "ctx" label: next to a
-model's name a bar can only be one thing.
+model's name a bar can only be one thing. The model, the bar and the percentage
+each have their own switch on the Popup page, since together they make the row
+busier than everyone wants; the line goes away with the last of them.
 
 Clicking a session's name takes you to it (see [Jumping to a
 session](#jumping-to-a-session)); the name underlines under the pointer, as a
@@ -577,8 +579,8 @@ it, how used the limit has to be before it appears, and whether it colours itsel
 by severity.
 
 **Popup** - how many sessions it shows before scrolling, whether finished
-sessions are listed, whether
-the usage footer shows, and which rows an expanded session has. Where the branch
+sessions are listed, whether the usage footer shows, which parts of the model
+and context line a row carries, and which rows an expanded session has. Where the branch
 goes is a two-option chooser rather than a checkbox hanging off the Branch tick,
 which read as an afterthought and looked like one.
 
@@ -604,6 +606,8 @@ All of it resets from one button, at the foot of the General page.
   row or rides on the repository as `repo/branch`), Session, Process, Version.
   Profile, Uptime and Directory are not optional: they are what the expansion is
   for. Directory and Repository can be abbreviated to Dir and Repo.
+- **Session rows** - the model, the context bar and the context percentage, each
+  on its own. All on by default.
 - **Hide session names and paths** - the same toggle as the eye in the header.
 
 ## Risks
