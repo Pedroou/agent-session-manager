@@ -119,6 +119,10 @@ Item {
         ColumnLayout {
             id: headings
             Layout.fillWidth: true
+            // A layout's ceiling is its children's, and the name below has one.
+            // Without this, a censored row - the name and nothing else - stopped
+            // growing at the end of its text and left the status adrift.
+            Layout.maximumWidth: Infinity
             Layout.alignment: Qt.AlignTop
             spacing: 0
 
@@ -126,9 +130,19 @@ Item {
             // terminal comes forward, on the right tab. The rest of the row
             // still opens the details. Only as wide as the text, so the link is
             // where it looks like it is.
+            //
+            // fillWidth with the text as its ceiling, not a maximumWidth bound
+            // to the column. Without fillWidth a layout pins an item to its
+            // preferred width, which made the name the column's minimum: a long
+            // one pushed the status out of the popup, and the hover buttons
+            // appearing pushed it out again. This way it can shrink to nothing
+            // and elides instead. Rounded up because the layout hands out whole
+            // pixels, and 109 for a 109.2 name elides a name that fits.
             PlasmaComponents3.Label {
                 id: nameLink
-                Layout.maximumWidth: headings.width
+                Layout.fillWidth: true
+                Layout.preferredWidth: Math.ceil(implicitWidth)
+                Layout.maximumWidth: Math.ceil(implicitWidth)
                 text: row.name
                 elide: Text.ElideRight
                 maximumLineCount: 1
