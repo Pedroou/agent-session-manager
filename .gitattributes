@@ -7,7 +7,7 @@ tools/** linguist-vendored
 
 # The collectors have no extension; Linguist reads their bash shebang as Shell,
 # which is what they are. The jq programs beside them are named outright.
-package/contents/scripts/*.jq linguist-language=jq
+package/contents/scripts/**/*.jq linguist-language=jq
 
 # Generated, and enormous next to the source.
 docs/screenshots/** linguist-documentation

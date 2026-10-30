@@ -41,6 +41,59 @@ function defaultColor(state) {
     return DEFAULT_COLORS[state] || DEFAULT_COLORS.unknown
 }
 
+// Everything that differs between the tools that run sessions, one entry per
+// value of a session's `agent`. A session from an agent with no entry is taken
+// for Claude Code's, which is what the collector reported before it said.
+//
+//   resume(session)   the command that reopens it, run from its directory
+//   millionByDefault  whether it asks for the 1M context window on the models
+//                     where that is optional (see contextWindow)
+var AGENTS = {
+    // A session from a second account needs that account's config directory,
+    // and $CLAUDE_CONFIG_DIR is how Claude Code itself is told - so this works
+    // whatever the user called the account and wherever they put it. The stock
+    // directory is the one value it must never be set to, which is what
+    // profileDefault marks.
+    claude: {
+        millionByDefault: false,
+        resume: function (session) {
+            var prefix = ""
+            if (session.profileDir && session.profileDefault === false) {
+                prefix = "CLAUDE_CONFIG_DIR=" + shellQuote(session.profileDir) + " "
+            }
+            return prefix + "claude --resume " + session.sessionId
+        }
+    },
+    // `omp --resume <id>` finds the id anywhere in the agent directory it runs
+    // with: the stock one plainly, a named profile with `--profile`, and any
+    // other through $PI_CODING_AGENT_DIR. A transcript kept outside every agent
+    // directory (`--session-dir`) can only be found by its path.
+    omp: {
+        millionByDefault: true,
+        resume: function (session) {
+            var home = session.profileDir + "/sessions/"
+            if (String(session.sessionFile || "").indexOf(home) !== 0) {
+                return "omp --resume " + shellQuote(session.sessionFile)
+            }
+            if (session.ompProfile) {
+                return "omp --profile " + shellQuote(session.ompProfile)
+                       + " --resume " + session.sessionId
+            }
+            if (session.profileDefault === false) {
+                return "PI_CODING_AGENT_DIR=" + shellQuote(session.profileDir)
+                       + " omp --resume " + session.sessionId
+            }
+            return "omp --resume " + session.sessionId
+        }
+    }
+}
+
+// An agent's entry in AGENTS. Only the table's own keys count: `agent` is text
+// from a file, and "constructor" is not an agent.
+function agentEntry(agent) {
+    return Object.prototype.hasOwnProperty.call(AGENTS, agent) ? AGENTS[agent] : AGENTS.claude
+}
+
 // Bars are all one height. Colour alone carries the state - a deliberate choice
 // to keep the panel from looking like a jagged little chart.
 function railFraction() {
@@ -226,13 +279,15 @@ function modelLabel(id) {
 
 // How many tokens a session's model can hold, or 0 when there is no telling.
 //
-// Neither transcript records it, so it follows the model, the way both tools
-// size it: Fable, Sonnet 5 and later, Haiku 5.5 and Opus 4.7 and later have a
-// native 1M window; Opus 4.6 and Sonnet 4.6 reach 1M only when asked for, which
-// Claude Code does through a "[1m]" model variant that the transcript does not
-// keep, and OMP does by default. Everything older is 200K. A session already
-// holding more than 200K is on the 1M window whatever its id said.
+// No transcript records it, so it follows the model, the way the tools size it:
+// Fable, Sonnet 5 and later, Haiku 5.5 and Opus 4.7 and later have a native 1M
+// window; Opus 4.6 and Sonnet 4.6 reach 1M only when asked for, which Claude
+// Code does through a "[1m]" model variant that the transcript does not keep,
+// and an agent marked `millionByDefault` does always. Everything older is 200K.
+// A session already holding more than 200K is on the 1M window whatever its id
+// said.
 function contextWindow(id, agent, tokens) {
+    var optedIn = agentEntry(agent).millionByDefault
     var p = parseModel(id)
     var version = p.major * 100 + p.minor
     var million = 1000000
@@ -242,9 +297,9 @@ function contextWindow(id, agent, tokens) {
     } else if (p.family === "fable" || p.family === "mythos") {
         window = million
     } else if (p.family === "opus") {
-        window = version >= 407 || (version === 406 && agent === "omp") ? million : 200000
+        window = version >= 407 || (version === 406 && optedIn) ? million : 200000
     } else if (p.family === "sonnet") {
-        window = version >= 500 || (version === 406 && agent === "omp") ? million : 200000
+        window = version >= 500 || (version === 406 && optedIn) ? million : 200000
     } else if (p.family === "haiku") {
         window = version >= 505 ? million : 200000
     } else {
@@ -326,40 +381,11 @@ function detailRows(session, settings, nowMs, censored) {
     return rows
 }
 
-// The command that reopens a session in a new terminal. `claude --resume <id>`
-// from its own directory is the one that actually lands you back in it.
-//
-// A session from a second account needs that account's config directory, and
-// $CLAUDE_CONFIG_DIR is how Claude Code itself is told - so this works whatever
-// the user called the account and wherever they put it. The stock directory is
-// the one value it must never be set to, which is what profileDefault marks.
-//
-// OMP sessions resume with `omp --resume <id>`, which finds the id anywhere in
-// the agent directory it runs with: the stock one plainly, a named profile with
-// `--profile`, and any other through $PI_CODING_AGENT_DIR. A transcript kept
-// outside every agent directory (`--session-dir`) can only be found by its path.
+// The command that reopens a session in a new terminal: the agent's own resume
+// command, run from the session's directory, which is the one that actually
+// lands you back in it.
 function resumeCommand(session) {
-    var into = "cd " + shellQuote(session.cwd) + " && "
-    if (session.agent === "omp") {
-        var home = session.profileDir + "/sessions/"
-        if (String(session.sessionFile || "").indexOf(home) !== 0) {
-            return into + "omp --resume " + shellQuote(session.sessionFile)
-        }
-        if (session.ompProfile) {
-            return into + "omp --profile " + shellQuote(session.ompProfile)
-                   + " --resume " + session.sessionId
-        }
-        if (session.profileDefault === false) {
-            return into + "PI_CODING_AGENT_DIR=" + shellQuote(session.profileDir)
-                   + " omp --resume " + session.sessionId
-        }
-        return into + "omp --resume " + session.sessionId
-    }
-    var prefix = ""
-    if (session.profileDir && session.profileDefault === false) {
-        prefix = "CLAUDE_CONFIG_DIR=" + shellQuote(session.profileDir) + " "
-    }
-    return into + prefix + "claude --resume " + session.sessionId
+    return "cd " + shellQuote(session.cwd) + " && " + agentEntry(session.agent).resume(session)
 }
 
 // The shell command that ends a session, or "" when it cannot be done safely.

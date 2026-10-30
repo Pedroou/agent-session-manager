@@ -280,6 +280,17 @@ test("an OMP transcript kept outside the agent directory resumes by its path", (
                  + "omp --resume '/home/u/my sessions/2026-10-15T17-07-38-372Z_01a14088-a104.jsonl'")
 })
 
+// `agent` is text from a file. One the widget has no entry for is resumed the
+// way Claude Code's are - which also covers a name that happens to be a
+// property every object has, rather than calling something that is not there.
+test("an agent with no entry of its own is resumed as Claude Code", () => {
+    for (const agent of ["something-new", "constructor", "toString", "__proto__"]) {
+        assert.equal(Sessions.resumeCommand(session({agent: agent})),
+                     "cd /home/u/code/checkout-flow && claude --resume abc-123", agent)
+        assert.equal(Sessions.contextWindow("claude-opus-4-6", agent, 0), 200000, agent)
+    }
+})
+
 // kill(2) reads 0 as "my own process group" and a negative pid as a whole
 // group, so anything but a plain pid above 1 must never become a command.
 test("ending is refused for any pid that is not a plain process id", () => {

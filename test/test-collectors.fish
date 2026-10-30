@@ -1,8 +1,8 @@
 #!/usr/bin/env fish
-# Sandbox tests for the panel widget's collector (plasmoid .../scripts/claude-sessions).
+# Sandbox tests for the panel widget's collectors (plasmoid .../scripts/agent-sessions and claude-usage).
 # MUST run with: fish --no-config
 set -g REPO (dirname (dirname (realpath (status filename))))
-set -g COLLECT $REPO/package/contents/scripts/claude-sessions
+set -g COLLECT $REPO/package/contents/scripts/agent-sessions
 set -g USAGE $REPO/package/contents/scripts/claude-usage
 set -g ROOT (mktemp -d)/sandbox
 set -g PASS 0
@@ -33,8 +33,8 @@ end
 function setup
     rm -rf $ROOT
     set -g HOME $ROOT
-    set -gx CLAUDE_SESSIONS_PROC $ROOT/proc
-    set -e CLAUDE_SESSIONS_NO_ERROR
+    set -gx AGENT_SESSIONS_PROC $ROOT/proc
+    set -e AGENT_SESSIONS_NO_ERROR
     mkdir -p $ROOT/.claude/sessions $ROOT/.claude-personal/sessions $ROOT/proc
     # The two accounts most of this suite was written against, configured the
     # way the widget configures them. Task 27 unsets this to check what happens
@@ -47,21 +47,21 @@ end
 # start time in clock ticks. Fields 3..21 are placeholders.
 function fake_proc -a pid starttime comm
     test -n "$comm"; or set comm claude
-    mkdir -p $CLAUDE_SESSIONS_PROC/$pid
+    mkdir -p $AGENT_SESSIONS_PROC/$pid
     set -l pad
     for i in (seq 18)
         set -a pad 0
     end
-    echo "$pid ($comm) S "(string join ' ' $pad)" $starttime" >$CLAUDE_SESSIONS_PROC/$pid/stat
+    echo "$pid ($comm) S "(string join ' ' $pad)" $starttime" >$AGENT_SESSIONS_PROC/$pid/stat
 end
 
 # Give `pid` a child process, the way Claude Code's Bash tool does.
 function fake_child -a pid kid comm command
-    mkdir -p $CLAUDE_SESSIONS_PROC/$pid/task/$pid $CLAUDE_SESSIONS_PROC/$kid
-    echo -n "$kid " >>$CLAUDE_SESSIONS_PROC/$pid/task/$pid/children
-    echo $comm >$CLAUDE_SESSIONS_PROC/$kid/comm
+    mkdir -p $AGENT_SESSIONS_PROC/$pid/task/$pid $AGENT_SESSIONS_PROC/$kid
+    echo -n "$kid " >>$AGENT_SESSIONS_PROC/$pid/task/$pid/children
+    echo $comm >$AGENT_SESSIONS_PROC/$kid/comm
     string join0 -- /bin/bash -c "source /snap.sh || true && eval '$command' < /dev/null && pwd -P" \
-        >$CLAUDE_SESSIONS_PROC/$kid/cmdline
+        >$AGENT_SESSIONS_PROC/$kid/cmdline
 end
 
 # Write a transcript for a session, one JSON entry per line.
@@ -118,15 +118,15 @@ end
 # a working directory, and an fd table to hang transcripts and a tty on.
 function fake_omp -a pid starttime cwd
     fake_proc $pid $starttime omp
-    echo omp >$CLAUDE_SESSIONS_PROC/$pid/comm
-    string join0 -- omp >$CLAUDE_SESSIONS_PROC/$pid/cmdline
-    mkdir -p $cwd $CLAUDE_SESSIONS_PROC/$pid/fd
-    ln -s $cwd $CLAUDE_SESSIONS_PROC/$pid/cwd
+    echo omp >$AGENT_SESSIONS_PROC/$pid/comm
+    string join0 -- omp >$AGENT_SESSIONS_PROC/$pid/cmdline
+    mkdir -p $cwd $AGENT_SESSIONS_PROC/$pid/fd
+    ln -s $cwd $AGENT_SESSIONS_PROC/$pid/cwd
 end
 
 # Point one of an OMP process's fds at a file, as holding it open does.
 function omp_holds -a pid fd target
-    ln -s $target $CLAUDE_SESSIONS_PROC/$pid/fd/$fd
+    ln -s $target $AGENT_SESSIONS_PROC/$pid/fd/$fd
 end
 
 # An OMP transcript: the title slot, the session header, then the entries given.
@@ -307,6 +307,10 @@ fake_proc 4061 406100
 echo '{"pid": 0}' >$ROOT/.claude/sessions/notapid.json # non-numeric name
 echo '' >$ROOT/.claude/sessions/4062.json # empty file
 fake_proc 4062 406200
+# Whole braces around something that is still not JSON: it gets past the shape
+# check, so it is the jq that has to drop it - and only it.
+echo '{"pid": 4063, "status": "busy",}' >$ROOT/.claude/sessions/4063.json
+fake_proc 4063 406300
 set out (collect)
 check "the healthy session still lands" 1 (echo $out | jq '.sessions | length')
 check "and it is the good one" good (echo $out | jq -r '.sessions[0].name')
@@ -373,9 +377,9 @@ setup
 record work 4092 idle hit-the-limit /home/u/e
 fake_proc 4092 409200
 fake_transcript sid-4092 (api_error "You've hit your session limit")
-set -gx CLAUDE_SESSIONS_NO_ERROR 1
+set -gx AGENT_SESSIONS_NO_ERROR 1
 set out (collect)
-set -e CLAUDE_SESSIONS_NO_ERROR
+set -e AGENT_SESSIONS_NO_ERROR
 check "no transcript is read when disabled" done (echo $out | jq -r '.sessions[0].state')
 
 echo
@@ -601,7 +605,7 @@ set -e CLAUDE_PROFILES
 echo
 echo "═══ Task 31: OMP sessions are found from the process table ═══"
 setup
-echo "btime 1760000000" >$CLAUDE_SESSIONS_PROC/stat
+echo "btime 1760000000" >$AGENT_SESSIONS_PROC/stat
 fake_omp 4310 12345 $ROOT/code/checkout
 omp_transcript (omp_file 01a1-live) (string join '' \UF072C ' FLOW: Fix checkout') (omp_prompt "go")
 omp_holds 4310 69 (omp_file 01a1-live)
@@ -610,18 +614,18 @@ omp_transcript $ROOT/.omp/agent/sessions/-proj/2026-10-15T17-07-38-372Z_01a1-liv
 omp_holds 4310 70 $ROOT/.omp/agent/sessions/-proj/2026-10-15T17-07-38-372Z_01a1-live/0-Scout.jsonl
 # One of OMP's helper processes, which carries the same name.
 fake_omp 4311 12346 $ROOT/code/checkout
-string join0 -- /usr/bin/omp __omp_worker_js_eval_process >$CLAUDE_SESSIONS_PROC/4311/cmdline
+string join0 -- /usr/bin/omp __omp_worker_js_eval_process >$AGENT_SESSIONS_PROC/4311/cmdline
 omp_holds 4311 5 (omp_file 01a1-live)
 # OMP installed as a script and run by bun.
 fake_omp 4312 12347 $ROOT/code/other
-echo bun >$CLAUDE_SESSIONS_PROC/4312/comm
-string join0 -- bun $ROOT/.bun/bin/omp >$CLAUDE_SESSIONS_PROC/4312/cmdline
+echo bun >$AGENT_SESSIONS_PROC/4312/comm
+string join0 -- bun $ROOT/.bun/bin/omp >$AGENT_SESSIONS_PROC/4312/cmdline
 omp_transcript (omp_file 01a1-bun) "" (omp_turn stop)
 omp_holds 4312 9 (omp_file 01a1-bun)
 # Any other bun program is not OMP.
 fake_omp 4313 12348 $ROOT/code/other
-echo bun >$CLAUDE_SESSIONS_PROC/4313/comm
-string join0 -- bun run dev >$CLAUDE_SESSIONS_PROC/4313/cmdline
+echo bun >$AGENT_SESSIONS_PROC/4313/comm
+string join0 -- bun run dev >$AGENT_SESSIONS_PROC/4313/cmdline
 omp_holds 4313 9 (omp_file 01a1-bun)
 set out (collect)
 check "the session and the bun-run one, and no helper or stranger" "4310 4312" \
@@ -698,13 +702,13 @@ setup
 mkdir -p $ROOT/.omp/agent/terminal-sessions
 # Resumed, and has not written since: no fd, but its terminal's breadcrumb.
 fake_omp 4330 433000 $ROOT/code/resumed
-ln -s /dev/pts/7 $CLAUDE_SESSIONS_PROC/4330/fd/0
+ln -s /dev/pts/7 $AGENT_SESSIONS_PROC/4330/fd/0
 omp_transcript (omp_file 01a1-resumed) "Resumed one" (omp_turn stop)
 printf '%s\n' $ROOT/code/resumed (omp_file 01a1-resumed) "cwdstat 1 2" >$ROOT/.omp/agent/terminal-sessions/pts-7
 # A breadcrumb left by an earlier session in another directory says nothing
 # about the one running in that terminal now.
 fake_omp 4331 433100 $ROOT/code/elsewhere
-ln -s /dev/pts/8 $CLAUDE_SESSIONS_PROC/4331/fd/0
+ln -s /dev/pts/8 $AGENT_SESSIONS_PROC/4331/fd/0
 printf '%s\n' $ROOT/code/before (omp_file 01a1-before) >$ROOT/.omp/agent/terminal-sessions/pts-8
 set out (collect)
 check "the breadcrumb names the session" "01a1-resumed Resumed one" \
@@ -732,9 +736,9 @@ fake_proc 4350 435000
 fake_omp 4351 435100 $ROOT/code/omp-one
 omp_transcript (omp_file 01a1-off) "" (omp_turn stop)
 omp_holds 4351 7 (omp_file 01a1-off)
-set -gx CLAUDE_SESSIONS_OMP 0
+set -gx AGENT_SESSIONS_OMP 0
 set out (collect)
-set -e CLAUDE_SESSIONS_OMP
+set -e AGENT_SESSIONS_OMP
 check "no OMP session is reported" "4350" (echo $out | jq -r '[.sessions[].pid] | join(" ")')
 set out (collect)
 check "and on again, it is" "4350 4351" (echo $out | jq -r '[.sessions[].pid] | sort | join(" ")')
@@ -760,7 +764,7 @@ omp_holds 4394 7 (omp_file 01a1-huge)
 # A breadcrumb naming something that is not a transcript is not followed.
 mkdir -p $ROOT/.omp/agent/terminal-sessions
 fake_omp 4395 439500 $ROOT/code/odd
-ln -s /dev/pts/9 $CLAUDE_SESSIONS_PROC/4395/fd/0
+ln -s /dev/pts/9 $AGENT_SESSIONS_PROC/4395/fd/0
 echo "not a transcript" >$ROOT/notes.txt
 printf '%s\n' $ROOT/code/odd $ROOT/notes.txt >$ROOT/.omp/agent/terminal-sessions/pts-9
 set out (collect)

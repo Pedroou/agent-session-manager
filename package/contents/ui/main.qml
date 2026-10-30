@@ -463,7 +463,7 @@ PlasmoidItem {
     // The collector lives beside this file inside the package, so it is found
     // whether the widget was installed for the user or shipped system-wide.
     readonly property string collectorPath: {
-        var url = Qt.resolvedUrl("../scripts/claude-sessions").toString()
+        var url = Qt.resolvedUrl("../scripts/agent-sessions").toString()
         return url.replace(/^file:\/\//, "")
     }
 
@@ -491,7 +491,7 @@ PlasmoidItem {
 
     // OMP is looked for unless switched off; off, the collector skips it
     // entirely rather than looking and throwing the answer away.
-    readonly property string ompEnv: plasmoid.configuration.showOmp ? "" : "CLAUDE_SESSIONS_OMP=0 "
+    readonly property string ompEnv: plasmoid.configuration.showOmp ? "" : "AGENT_SESSIONS_OMP=0 "
 
     // At most one collector runs at a time: the DataSource ignores a source it
     // is already running, and every refresh asks for the same one. `timeout`

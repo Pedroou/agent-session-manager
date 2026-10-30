@@ -1,5 +1,5 @@
-# Turn OMP transcripts into session records shaped like Claude Code's registry,
-# for claude-sessions. Run as `jq -ncR -f omp-sessions.jq --args <meta>...`.
+# Turn OMP transcripts into session records, for agent-sessions.
+# Run as `jq -ncR -f omp.jq --args <meta>...`.
 #
 # stdin carries every session in turn: a line holding only a record separator
 # (U+001E) opens each one, followed by its transcript's first line and then the
@@ -7,14 +7,15 @@
 # through writing its last line, so any line that is not a whole JSON object is
 # dropped.
 #
-# The positional arguments are seven per session, in the same order, each with
+# The positional arguments are twelve per session, in the same order, each with
 # the ":" the caller prefixes so that jq never reads one as an option: pid,
 # session id, cwd, start time in epoch ms, transcript path, OMP profile name,
-# start time in clock ticks since boot.
+# start time in clock ticks since boot, the account as shown, agent directory,
+# "true" when that is the stock ~/.omp/agent, repository, branch.
 #
 # Prints one compact record per session, in order, whatever its transcript held.
 
-def arg($i): ($ARGS.positional[$i] // ":") | .[1:];
+def arg($i; $k): ($ARGS.positional[$i * 12 + $k] // ":") | .[1:];
 def flat: gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "");
 def ms: (.timestamp // "") | (try (sub("\\.[0-9]+"; "") | fromdateiso8601 * 1000) catch 0);
 
@@ -108,21 +109,29 @@ reduce inputs as $line ([];
 | state($entries) as $s
 | title($entries) as $title
 | model($entries) as $model
-| ((arg($i * 7 + 3) | tonumber?) // 0) as $startedAt
+| ((arg($i; 3) | tonumber?) // 0) as $startedAt
 | {
-    pid:             (arg($i * 7) | tonumber),
-    sessionId:       arg($i * 7 + 1),
-    cwd:             arg($i * 7 + 2),
+    agent:           "omp",
+    pid:             (arg($i; 0) | tonumber),
+    procStart:       arg($i; 6),
+    sessionId:       arg($i; 1),
+    cwd:             arg($i; 2),
     name:            (if $title == "" then null else $title end),
-    kind:            "interactive",
     status:          $s.status,
     detail:          ($s.detail // ""),
+    kind:            "interactive",
+    version:         "",
     startedAt:       $startedAt,
     statusUpdatedAt: (if ($s.at // 0) > 0 then $s.at else $startedAt end),
-    agent:           "omp",
-    sessionFile:     arg($i * 7 + 4),
-    ompProfile:      arg($i * 7 + 5),
-    procStart:       arg($i * 7 + 6),
     model:           $model.model,
-    contextTokens:   $model.contextTokens
+    contextTokens:   $model.contextTokens,
+    profile:         arg($i; 7),
+    profileDir:      arg($i; 8),
+    profileDefault:  (arg($i; 9) == "true"),
+    repository:      arg($i; 10),
+    branch:          arg($i; 11),
+    # What `omp --resume` needs: the transcript, for one kept outside every
+    # agent directory, and the named profile it belongs to.
+    sessionFile:     arg($i; 4),
+    ompProfile:      arg($i; 5)
   }

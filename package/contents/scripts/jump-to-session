@@ -32,11 +32,11 @@
 # stderr when there was nothing to jump to.
 #
 # Environment:
-#   CLAUDE_SESSIONS_PROC  root to look for <pid>/... under, default /proc
+#   AGENT_SESSIONS_PROC  root to look for <pid>/... under, default /proc
 
 pid=$1
 want_start=$2
-proc_root=${CLAUDE_SESSIONS_PROC:-/proc}
+proc_root=${AGENT_SESSIONS_PROC:-/proc}
 
 if [[ ! $pid =~ ^[0-9]+$ ]] || (( pid <= 1 )) || [[ ! $want_start =~ ^[0-9]+$ ]]; then
     echo "jump-to-session: needs a pid and its start time" >&2

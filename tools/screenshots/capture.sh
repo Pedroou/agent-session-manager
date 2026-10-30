@@ -41,7 +41,7 @@ env -u QT_STYLE_OVERRIDE bwrap \
     --setenv QT_FONT_DPI 96 \
     --setenv QT_SCALE_FACTOR "$SCALE" \
     --setenv QML_DISABLE_DISK_CACHE 1 \
-    --setenv CLAUDE_SESSIONS_PROC /home/dev/proc \
+    --setenv AGENT_SESSIONS_PROC /home/dev/proc \
     plasmawindowed "$PLUGIN_ID" >"$HERE/capture.log" 2>&1 &
 PID=$!
 

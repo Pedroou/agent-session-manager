@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# Print one JSON document describing every agent session running right now:
+# Claude Code, across every configured profile, and OMP (oh-my-pi).
+#
+# Each agent has a collector of its own beside this script, in sessions/:
+# <agent>.bash, with the jq program that reads that agent's files. The collector
+# defines __as_<agent>_collect, which finds the agent's live sessions and appends
+# one session record per session to __as_records. This script owns only what
+# every agent shares: the ceilings, which agents run, and the finish - a display
+# state for each record, the sort, and the counts.
+#
+# A session record is one line of compact JSON:
+#
+#   agent            which tool runs it: "claude", "omp"
+#   pid              its process
+#   procStart        that process's start time in clock ticks since boot, as a
+#                    string - field 22 of /proc/<pid>/stat. Ending a session and
+#                    jumping to it check it again, so a recycled pid is never
+#                    acted on
+#   sessionId        the id the agent resumes it by
+#   cwd              its working directory
+#   name             what it is called; null for the last component of cwd
+#   status           waiting, error, running, busy, shell or idle (see
+#                    statusState below); anything else is shown as unknown, under
+#                    its own name
+#   detail           what it is waiting for, running or failed with; "" for none
+#   kind, version    as the agent reports them, or ""
+#   startedAt        when it started, epoch ms
+#   statusUpdatedAt  when its status last changed, epoch ms
+#   model            the model id; "" before its first reply
+#   contextTokens    the tokens its last request carried
+#   profile          the account it runs under, as shown on its row
+#   profileDir       that account's directory
+#   profileDefault   true when that directory is the agent's stock one
+#   repository       the git repository holding cwd, or ""
+#   branch           that repository's branch, or ""
+#
+# Any other field is the agent's own - what its resume command needs, say - and
+# is passed through untouched, for code/sessions.js to read by agent. A record
+# may also be null, standing for a session that turned out to be unreadable; it
+# is dropped. A collector hands over one record per session or none at all, so a
+# jq that fell over halfway costs that agent's rows for one refresh and nothing
+# more.
+#
+# The widget polls this, so it stays cheap: every collector reads with bash
+# builtins where it can and hands all of its sessions to a single jq, and the
+# helpers in sessions/common.bash answer in variables rather than through a
+# $(...) subshell each.
+#
+# Environment:
+#   CLAUDE_PROFILES          JSON array of {name, dir}: the Claude Code accounts
+#                            to read, in order
+#   AGENT_SESSIONS_<AGENT>   0 to leave that agent out entirely - for OMP,
+#                            AGENT_SESSIONS_OMP=0: no /proc scan, nothing read,
+#                            nothing run. Anything else, or unset, reads it.
+#   AGENT_SESSIONS_PROC      root to look for <pid>/... under, default /proc
+#   AGENT_SESSIONS_NO_ERROR  set to skip Claude Code's transcript scan for errors
+#
+# Exit status is 0 whenever a document was printed, including "nothing running".
+
+# An unmatched glob expands to nothing, rather than to itself.
+shopt -s nullglob
+
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Agent Session Manager needs jq. Install the jq package and it will pick it up on the next refresh." >&2
+    exit 1
+fi
+
+# Ceilings, inherited by every process this starts. A run takes about 10 MB and
+# a tenth of a CPU second, and still completes under a 128 MB address-space
+# limit; these sit far above that, so they never bind on a run that is working,
+# and stop one that is not - whatever it hit - long before the machine notices.
+# Only ever lowered: a tighter limit already in force is kept, and a limit that
+# cannot be set is simply not set.
+__as_cap() {
+    local flag=$1 value=$2 now
+    now=$(ulimit -S "$flag")
+    if [[ $now == unlimited ]] || { [[ $now =~ ^[0-9]+$ ]] && ((now > value)); }; then
+        ulimit -S "$flag" "$value" 2>/dev/null
+    fi
+}
+__as_cap -v 1048576 # 1 GiB of address space per process
+__as_cap -t 30 # 30 seconds of CPU per process
+
+__as_proc=/proc
+[[ -n $AGENT_SESSIONS_PROC ]] && __as_proc=$AGENT_SESSIONS_PROC
+
+__as_lib=${BASH_SOURCE[0]%/*}
+[[ $__as_lib == "${BASH_SOURCE[0]}" ]] && __as_lib=.
+__as_lib=$__as_lib/sessions
+
+# shellcheck source=sessions/common.bash
+source "$__as_lib/common.bash" || exit 1
+
+__as_records=() # one session record per line, from every collector
+__as_profiles=() # the Claude Code accounts whose directory exists, by name
+
+# In this order, which is also the order sessions keep when everything they are
+# sorted by is equal.
+for __as_agent in claude omp; do
+    __as_switch=AGENT_SESSIONS_${__as_agent^^}
+    [[ ${!__as_switch} == 0 ]] && continue
+    # shellcheck source=/dev/null
+    source "$__as_lib/$__as_agent.bash" || continue
+    "__as_${__as_agent}_collect"
+done
+
+# Seconds with three zeros appended is a millisecond stamp, without relying on
+# `date +%N`, which uutils coreutils - the default on this distro - does not
+# accept a width for.
+now=$(date +%s)000
+
+profiles_json='[]'
+if ((${#__as_profiles[@]} > 0)); then
+    printf -v joined '%s","' "${__as_profiles[@]}"
+    profiles_json='["'${joined%'","'}'"]'
+fi
+
+printf '%s\n' "${__as_records[@]}" | jq -n \
+    --argjson now "$now" \
+    --argjson profiles "$profiles_json" '
+    def statusLabel($s):
+        {waiting: "Waiting", running: "Running", busy: "Working",
+         shell: "Shell", idle: "Done", error: "Error"}[$s]
+        // (if ($s | length) > 0 then ($s[0:1] | ascii_upcase) + $s[1:] else "Unknown" end);
+    def statusState($s):
+        {waiting: "waiting", running: "running", busy: "working",
+         shell: "shell", idle: "done", error: "error"}[$s] // "unknown";
+    def rank($st):
+        {waiting: 0, error: 1, running: 2, working: 3, shell: 4, done: 5}[$st] // 6;
+
+    [inputs | objects] | map(
+        . as $r
+        | ($r.status // "") as $status
+        | statusState($status) as $state
+        | (($r.cwd // "") | split("/") | map(select(. != ""))) as $parts
+        | $r + {
+            agent:           ($r.agent // ""),
+            pid:             ($r.pid // 0),
+            procStart:       (($r.procStart // "") | tostring),
+            profile:         ($r.profile // ""),
+            profileDir:      ($r.profileDir // ""),
+            profileDefault:  ($r.profileDefault == true),
+            name:            ($r.name // $parts[-1] // "session"),
+            cwd:             ($r.cwd // ""),
+            dir:             ($parts[-1] // "/"),
+            repository:      ($r.repository // ""),
+            branch:          ($r.branch // ""),
+            sessionId:       ($r.sessionId // ""),
+            kind:            ($r.kind // "interactive"),
+            status:          $status,
+            state:           $state,
+            label:           statusLabel($status),
+            detail:          ($r.detail // ""),
+            startedAt:       ($r.startedAt // 0),
+            statusUpdatedAt: ($r.statusUpdatedAt // 0),
+            version:         ($r.version // ""),
+            # The model as its id, and the tokens the last request carried; the
+            # widget turns those into a name and a share of the context window.
+            model:           ($r.model // ""),
+            contextTokens:   ($r.contextTokens // 0),
+            rank:            rank($state)
+        }
+    )
+    | sort_by(.rank, -.statusUpdatedAt, .name) as $sessions
+    | {
+        generatedAt: $now,
+        profiles: $profiles,
+        counts: (
+            {waiting: 0, error: 0, running: 0, working: 0, shell: 0, done: 0, unknown: 0}
+            + ($sessions | group_by(.state) | map({key: .[0].state, value: length}) | from_entries)
+            + {total: ($sessions | length)}
+        ),
+        sessions: $sessions
+    }'

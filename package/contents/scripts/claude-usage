@@ -35,7 +35,7 @@ fi
 endpoint=https://api.anthropic.com/api/oauth/usage
 
 # Which config directories to ask about, and what to call each one. Kept in step
-# with claude-sessions on purpose: the two are read together and a profile the
+# with agent-sessions on purpose: the two are read together and a profile the
 # session list knows about but the usage footer does not would be a puzzle.
 profile_names=()
 profile_dirs=()

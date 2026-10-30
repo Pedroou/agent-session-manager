@@ -199,15 +199,15 @@ window follows from the model. **Jumping** walks up from the session's process t
 the terminal that shows it, picks the tab through Konsole's D-Bus or the pane
 through tmux, and has KWin raise the window.
 
-Everything with a decision in it lives in two bash collectors, two jq programs
-and two Qt-free JavaScript files, all tested without a running Plasma shell. The
-collector suite runs the real scripts against a throwaway `$HOME`, `/proc` and
-transcripts; it is written in fish, so running it needs fish - the widget does
-not:
+Everything with a decision in it lives in bash collectors - one per agent for
+sessions, one for plan usage - their jq programs, and two Qt-free JavaScript
+files, all tested without a running Plasma shell. The collector suite runs the
+real scripts against a throwaway `$HOME`, `/proc` and transcripts; it is written
+in fish, so running it needs fish - the widget does not:
 
 ```fish
 fish --no-config test/test-collectors.fish   # 140 assertions
-node --test test/sessions.test.js            # 39
+node --test test/sessions.test.js            # 40
 node --test test/usage.test.js               # 29
 ```
 

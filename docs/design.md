@@ -145,7 +145,7 @@ breadcrumb OMP writes per terminal for its own `--continue`:
 and is trusted only when that cwd is the process's own.
 
 **Which state.** The transcript's tail, read in one jq for every OMP session
-(`scripts/omp-sessions.jq`). Bookkeeping entries - usage, titles, model changes -
+(`scripts/sessions/omp.jq`). Bookkeeping entries - usage, titles, model changes -
 are skipped, because they land after a turn has ended. Of what remains, the last
 entry decides:
 
@@ -171,8 +171,8 @@ is passed back through `PI_CODING_AGENT_DIR`, and a transcript kept outside
 every agent directory (`--session-dir`) resumes by its path.
 
 **Off, and the ceilings when on.** The General page's **Show OMP sessions**
-(`showOmp`, default on) sends `CLAUDE_SESSIONS_OMP=0` to the collector, which
-then skips the whole OMP section - no `/proc` scan, no reads, no processes. On,
+(`showOmp`, default on) sends `AGENT_SESSIONS_OMP=0` to the collector, which
+then never loads OMP's collector - no `/proc` scan, no reads, no processes. On,
 what it can cost is bounded whatever the machine is doing:
 
 | What                       | Ceiling                                          |
@@ -286,8 +286,12 @@ install.sh                       # kpackagetool6 --install / --upgrade
 package/
   metadata.json
   contents/
-    scripts/claude-sessions      # bash: registry + /proc + transcripts → JSON
-    scripts/omp-sessions.jq      # OMP transcript tails → registry-shaped records
+    scripts/agent-sessions       # bash: runs each agent's collector, sorts, counts → JSON
+    scripts/sessions/common.bash # helpers every agent's collector shares
+    scripts/sessions/claude.bash # Claude Code: registry + /proc + transcripts → records
+    scripts/sessions/claude.jq   # registry records + transcript heads → session records
+    scripts/sessions/omp.bash    # OMP: process table + open transcripts → records
+    scripts/sessions/omp.jq      # OMP transcript tails → session records
     scripts/claude-usage         # bash: credentials + usage API → JSON
     scripts/omp-usage.jq         # `omp usage --json` → usage profiles
     code/sessions.js             # pure display logic, no Qt
@@ -308,24 +312,27 @@ package/
 test/
   sessions.test.js               # node tests for the pure layers
   usage.test.js
-  test-collectors.fish           # sandbox tests for both collectors
+  test-collectors.fish           # sandbox tests for the session and usage collectors
 tools/screenshots/               # the rig that produces docs/screenshots
 docs/design.md                   # this file
 ```
 
 ### The isolation boundary
 
-Everything with a decision in it sits in one of six testable units; the QML
-binds and lays out.
+Everything with a decision in it sits in a testable unit; the QML binds and
+lays out.
 
-**`scripts/claude-sessions`** owns the registry: which directories to read,
-which records are live, how a status maps to a state, the two states that are
-worked out rather than read, the git repository and branch behind each session,
-and what order they come in. It also finds OMP's sessions, and hands their
-transcripts to **`scripts/omp-sessions.jq`**, which owns what an OMP transcript
-means. It prints one document and nothing else, which is also how it is tested -
+**`scripts/agent-sessions`** owns what every agent shares: the ceilings, which
+agents' collectors run, how a status maps to a display state, and what order
+sessions come in. Each agent's own knowledge lives beside it in
+`scripts/sessions/`: **`claude.bash`** owns Claude Code's registry - which
+directories to read, which records are live, the two states worked out rather
+than read - and **`claude.jq`** turns those records and the head of each
+transcript into session records; **`omp.bash`** finds OMP's processes and their
+transcripts, and **`omp.jq`** owns what an OMP transcript means. The collector
+prints one document and nothing else, which is also how it is tested -
 `test/test-collectors.fish` builds a throwaway `$HOME`, a throwaway `/proc`
-(`CLAUDE_SESSIONS_PROC`) and throwaway transcripts, and runs the real script
+(`AGENT_SESSIONS_PROC`) and throwaway transcripts, and runs the real script
 against them.
 
 **`scripts/claude-usage`** owns the credentials and the API call, with
@@ -347,6 +354,31 @@ variables rather than through a `$(…)` subshell each. Looking for OMP adds a
 read of every process's `comm` (~15 ms over 500 processes), and each OMP session
 found adds one `tail`, with one `realpath` and one jq shared between them: three
 sessions took a run from 25 ms to 90 ms.
+
+### Session records
+
+What passes between an agent's collector and the rest is one line of JSON per
+session, and it is the same for every agent: `agent`, `pid`, `procStart`,
+`sessionId`, `cwd`, `name`, `status`, `detail`, `kind`, `version`, `startedAt`,
+`statusUpdatedAt`, `model`, `contextTokens`, `profile`, `profileDir`,
+`profileDefault`, `repository` and `branch`, each described at the top of
+`scripts/agent-sessions`. `status` is one of a closed set - Claude Code's
+registry words plus the two worked-out states, `waiting`, `error`, `running`,
+`busy`, `shell`, `idle` - so a new agent says what its session is doing in the
+vocabulary the panel already draws. Fields beyond those are the agent's own and
+pass through untouched: OMP's `sessionFile` and `ompProfile` exist only for its
+resume command.
+
+A collector hands over one record per session or none at all. A jq that falls
+over halfway costs that agent's rows for one refresh, never a list where some
+sessions are missing and nobody can tell, and never another agent's rows.
+
+Where agents differ after that, `code/sessions.js` looks it up in its `AGENTS`
+table, keyed by `agent`: the resume command, and whether the agent asks for the
+1M context window where it is optional. Adding an agent is a
+`scripts/sessions/<agent>.bash` that defines `__as_<agent>_collect`, its name
+in the list `agent-sessions` runs, and an entry in `AGENTS`;
+`AGENT_SESSIONS_<AGENT>=0` switches it off with no further code.
 
 ### Data flow
 
@@ -466,7 +498,7 @@ stops at the fourth assistant line, so the cost does not grow with the length of
 the conversation, and passes over the entries that say nothing about the
 session's own context: a subagent's (`isSidechain`), and the ones Claude Code
 writes itself for an API error (model `<synthetic>`). All sessions share one
-jq. For OMP, `omp-sessions.jq` already has the tail; the model is the last one
+jq, `claude.jq`. For OMP, `omp.jq` already has the tail; the model is the last one
 named, by a reply or by a `/model` switch made since, and the tokens come from
 the last reply.
 

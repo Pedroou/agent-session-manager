@@ -17,15 +17,15 @@ done
 
 id=$(jq -r '.KPlugin.Id' "$package/metadata.json")
 
-if [[ ! -x $package/contents/scripts/claude-sessions ]]; then
-    echo "✗ $package/contents/scripts/claude-sessions is not executable."
-    echo "  Run: chmod +x $package/contents/scripts/claude-sessions"
+if [[ ! -x $package/contents/scripts/agent-sessions ]]; then
+    echo "✗ $package/contents/scripts/agent-sessions is not executable."
+    echo "  Run: chmod +x $package/contents/scripts/agent-sessions"
     exit 1
 fi
 
 # The widget shells out to this on every refresh; catching a broken collector
 # here beats staring at an empty popup later.
-if ! "$package/contents/scripts/claude-sessions" >/dev/null; then
+if ! "$package/contents/scripts/agent-sessions" >/dev/null; then
     echo "✗ The collector script failed to run. Fix that before installing."
     exit 1
 fi
