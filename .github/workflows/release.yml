@@ -9,12 +9,18 @@ name: release
 # bumped installs nothing while telling every user it worked. release.fish
 # writes the tag and the metadata from one string so they cannot drift, and
 # this refuses the release if they ever do.
+#
+# The notes are CHANGELOG.md's section for the version, and a change to
+# CHANGELOG.md on main rewrites the notes of every release it covers.
 on:
   push:
     tags: ['v*']
+    branches: [main]
+    paths: [CHANGELOG.md]
 
 jobs:
   release:
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -41,4 +47,29 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$ARTIFACT" --generate-notes --verify-tag
+        run: |
+          .github/release-notes.sh "$GITHUB_REF_NAME" >notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no section for $GITHUB_REF_NAME"
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" "$ARTIFACT" --verify-tag --notes-file notes.md
+
+  notes:
+    if: github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Match every release's notes to CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tag in $(gh release list --json tagName --jq '.[].tagName'); do
+            .github/release-notes.sh "$tag" >notes.md
+            if grep -q '[^[:space:]]' notes.md; then
+              gh release edit "$tag" --notes-file notes.md
+            fi
+          done

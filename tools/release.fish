@@ -43,6 +43,13 @@ if git -C $repo rev-parse -q --verify "refs/tags/v$newver" >/dev/null
     exit 1
 end
 
+# The release notes are CHANGELOG.md's section for the version; a release
+# without one would publish with nothing to say.
+if not string match -qr '\S' -- ($repo/.github/release-notes.sh $newver)
+    echo "✗ CHANGELOG.md has no section for $newver. Add one first."
+    exit 1
+end
+
 set -l metadata $repo/package/metadata.json
 set -l current (jq -r '.KPlugin.Version' $metadata)
 set -l id (jq -r '.KPlugin.Id' $metadata)
@@ -112,7 +119,7 @@ echo "→ Committed and tagged v$newver"
 echo
 echo "Next:"
 echo "  git push && git push --tags"
-echo "  Cut a GitHub release for v$newver and attach the .plasmoid"
+echo "  The release workflow then publishes it, with its CHANGELOG.md notes and the .plasmoid"
 echo
 echo "  On the KDE Store, three version fields have to agree:"
 echo "    1. KPlugin.Version in the archive   - already $newver"
