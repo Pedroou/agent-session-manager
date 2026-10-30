@@ -194,6 +194,22 @@ test("an OMP login's fix is in omp, not claude", () => {
     assert.match(Usage.stateMessage(Object.assign({state: "uncapped"}, omp)), /systemd/)
 })
 
+test("a Codex login's fix is in codex, and an unread one says a reply brings one", () => {
+    const codex = {agent: "codex", bars: []}
+    assert.match(Usage.stateMessage(Object.assign({state: "absent"}, codex)), /run codex/)
+    assert.match(Usage.stateMessage(Object.assign({state: "unread"}, codex)), /every reply/)
+    assert.match(Usage.stateMessage(Object.assign({state: "error"}, codex)), /Codex/)
+    assert.doesNotMatch(Usage.stateMessage(Object.assign({state: "error"}, codex)), /usage API/)
+})
+
+test("an agent the widget does not know is taken for Claude Code", () => {
+    for (const agent of ["aider", "constructor", "__proto__"]) {
+        const row = {agent, bars: []}
+        assert.match(Usage.stateMessage(Object.assign({state: "expired"}, row)), /run claude/)
+        assert.match(Usage.stateMessage(Object.assign({state: "error"}, row)), /Couldn't reach/)
+    }
+})
+
 // When omp itself cannot answer, the collector cannot know which accounts it
 // would have listed, so it sends one error row for the whole agent directory.
 test("omp failing keeps every account of its agent directory on its last reading", () => {

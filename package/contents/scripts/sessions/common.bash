@@ -76,6 +76,53 @@ __as_start_ticks() {
     __as_ticks=$__as_field
 }
 
+# Every process on the machine, as its `comm` indexed by pid - so iterating
+# ${!__as_comms[@]} goes in ascending pid order, which indexing a sparse array
+# gives for free. Read once per run however many agents look for processes:
+# the walk is ~500 reads on a desktop. A `comm` is read to 64 bytes at most,
+# and a process that exits between the glob and the read is simply absent.
+__as_comms=()
+__as_comms_read=false
+__as_proc_table() {
+    [[ $__as_comms_read == true ]] && return 0
+    __as_comms_read=true
+    local entry pid comm
+    for entry in "$__as_proc"/[1-9]*; do
+        pid=${entry##*/}
+        [[ $pid == *[!0-9]* ]] && continue
+        comm=
+        IFS= read -r -n 64 comm 2>/dev/null <"$entry/comm" || [[ -n $comm ]] || continue
+        __as_comms[pid]=$comm
+    done
+}
+
+# The boot time, in seconds since the epoch: the `btime` line of /proc/stat,
+# which a process's start time in clock ticks counts from. Read once per run;
+# sets __as_btime, empty when there is no telling.
+__as_btime=
+__as_btime_read=false
+__as_boot_time() {
+    [[ $__as_btime_read == true ]] && return 0
+    __as_btime_read=true
+    local line
+    [[ -r $__as_proc/stat ]] || return 0
+    while IFS= read -r line; do
+        if [[ $line == 'btime '* && $line =~ ^btime\ ([0-9]+)$ ]]; then
+            __as_btime=${BASH_REMATCH[1]}
+            break
+        fi
+    done 2>/dev/null <"$__as_proc/stat"
+}
+
+# A start time in clock ticks as epoch milliseconds, in __as_ms - 0 when the
+# boot time is not known. USER_HZ is 100 on every architecture Linux exposes to
+# userspace, so a tick is 10 ms.
+__as_ticks_ms() {
+    __as_boot_time
+    __as_ms=0
+    [[ -n $__as_btime && $1 =~ ^[0-9]+$ ]] && __as_ms=$(((__as_btime * 100 + $1) * 10))
+}
+
 # The git repository a session is sitting in, as "name" and "branch".
 #
 # Walks up for a .git rather than shelling out to git, which would be two more

@@ -1,5 +1,5 @@
-# Turn `omp usage --json` into the widget's usage profiles, for claude-usage.
-# Run as `jq -c --arg group <id> --arg name <label> -f omp-usage.jq`.
+# Turn `omp usage --json` into the widget's usage profiles, for usage/omp.bash.
+# Run as `jq -c --arg group <id> --arg name <label> -f usage/omp.jq`.
 #
 # OMP owns its logins - it stores them, refreshes them, and asks Anthropic for
 # their limits itself - so the widget never sees a token: it reads the report

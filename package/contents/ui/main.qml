@@ -333,7 +333,7 @@ PlasmoidItem {
     }
 
     readonly property string usagePath: {
-        var url = Qt.resolvedUrl("../scripts/claude-usage").toString()
+        var url = Qt.resolvedUrl("../scripts/agent-usage").toString()
         return url.replace(/^file:\/\//, "")
     }
 
@@ -353,11 +353,13 @@ PlasmoidItem {
             return
         }
         lastUsageFetch = now
-        // omp is a heavy runtime and only ever asked when its switch is on.
+        // omp is a heavy runtime and only ever asked when its switch is on;
+        // Codex is only read, but has a switch of its own all the same.
         // The whole run is bounded: curl gives up after 8 s per account, omp
         // after 15 s, and this after a minute whatever is going on.
-        var ompUsageEnv = plasmoid.configuration.ompUsage ? "" : "CLAUDE_USAGE_OMP=0 "
-        usageSource.connectSource(profilesEnv + ompUsageEnv + "timeout -k 2 60 "
+        var ompUsageEnv = plasmoid.configuration.ompUsage ? "" : "AGENT_USAGE_OMP=0 "
+        var codexUsageEnv = plasmoid.configuration.codexUsage ? "" : "AGENT_USAGE_CODEX=0 "
+        usageSource.connectSource(profilesEnv + ompUsageEnv + codexUsageEnv + "timeout -k 2 60 "
                                   + shellQuote(usagePath))
     }
 
@@ -489,9 +491,10 @@ PlasmoidItem {
         return "CLAUDE_PROFILES=" + shellQuote(JSON.stringify(slim)) + " "
     }
 
-    // OMP is looked for unless switched off; off, the collector skips it
-    // entirely rather than looking and throwing the answer away.
-    readonly property string ompEnv: plasmoid.configuration.showOmp ? "" : "AGENT_SESSIONS_OMP=0 "
+    // OMP and Codex are looked for unless switched off; off, the collector
+    // skips that agent entirely rather than looking and throwing the answer away.
+    readonly property string agentsEnv: (plasmoid.configuration.showOmp ? "" : "AGENT_SESSIONS_OMP=0 ")
+                                        + (plasmoid.configuration.showCodex ? "" : "AGENT_SESSIONS_CODEX=0 ")
 
     // At most one collector runs at a time: the DataSource ignores a source it
     // is already running, and every refresh asks for the same one. `timeout`
@@ -500,7 +503,7 @@ PlasmoidItem {
     // stuck on anything at all is replaced on the next refresh instead of
     // blocking every refresh after it.
     function refresh() {
-        collector.connectSource(profilesEnv + ompEnv + "timeout -k 2 20 "
+        collector.connectSource(profilesEnv + agentsEnv + "timeout -k 2 20 "
                                 + shellQuote(collectorPath))
     }
 

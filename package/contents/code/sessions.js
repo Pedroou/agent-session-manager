@@ -85,6 +85,18 @@ var AGENTS = {
             }
             return "omp --resume " + session.sessionId
         }
+    },
+    // `codex resume <id>` looks in the Codex home it runs with: ~/.codex
+    // plainly, any other through $CODEX_HOME, which is Codex's own switch.
+    codex: {
+        millionByDefault: false,
+        resume: function (session) {
+            var prefix = ""
+            if (session.profileDir && session.profileDefault === false) {
+                prefix = "CODEX_HOME=" + shellQuote(session.profileDir) + " "
+            }
+            return prefix + "codex resume " + session.sessionId
+        }
     }
 }
 
@@ -308,11 +320,25 @@ function contextWindow(id, agent, tokens) {
     return tokens > window ? million : window
 }
 
+// The window a session's context is measured against: the one its agent
+// recorded, when it did - Codex writes its own down - or else the one its model
+// implies.
+function sessionWindow(session) {
+    if (!session) {
+        return 0
+    }
+    var recorded = Number(session.contextWindow) || 0
+    if (recorded > 0) {
+        return recorded
+    }
+    return contextWindow(session.model, session.agent, Number(session.contextTokens) || 0)
+}
+
 // How full a session's context is, 0-100, or -1 when that cannot be said: no
 // reply yet, or a model whose window is not known.
 function contextPercent(session) {
     var tokens = session ? Number(session.contextTokens) || 0 : 0
-    var window = session ? contextWindow(session.model, session.agent, tokens) : 0
+    var window = sessionWindow(session)
     if (tokens <= 0 || window <= 0) {
         return -1
     }
@@ -474,6 +500,7 @@ if (typeof module !== "undefined" && module.exports) {
         context: context,
         modelLabel: modelLabel,
         contextWindow: contextWindow,
+        sessionWindow: sessionWindow,
         contextPercent: contextPercent,
         tokenCount: tokenCount,
         detailRows: detailRows,

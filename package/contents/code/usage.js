@@ -65,24 +65,60 @@ function resetText(resetsAt, nowMs) {
                       : "resets in " + days + "d"
 }
 
-// What to say when a profile has no bars to draw. Each one names the fix - and
-// the fix depends on which tool holds the login.
+// What to say when a profile has no bars to draw, by the tool that holds the
+// login - one entry per value of a row's `agent`, since each message names the
+// fix and the fix is that tool's. A row from an agent with no entry is taken for
+// Claude Code's, which is what the collector reported before it said.
+//
+//   absent   no login at all
+//   expired  a login that has to be renewed by hand
+//   unread   a login, but no reading of its plan yet
+//   error    the reading failed this time
+var AGENTS = {
+    claude: {
+        absent: "Not signed in",
+        expired: "Signed out - run claude to sign back in",
+        unread: "No reading yet",
+        error: "Couldn't reach the usage API"
+    },
+    omp: {
+        absent: "Not signed in",
+        expired: "Signed out - log in again in omp",
+        unread: "No reading yet",
+        error: "Couldn't get usage from omp"
+    },
+    // Codex's figures come from its own transcripts, written with each reply, so
+    // a login that has not had one since has nothing to show yet.
+    codex: {
+        absent: "Not signed in - run codex to sign in",
+        expired: "Signed out - run codex to sign back in",
+        unread: "No reading yet - Codex records one with every reply",
+        error: "Couldn't read Codex's usage"
+    }
+}
+
+// An agent's entry in AGENTS. Only the table's own keys count: `agent` is text
+// from a file, and "constructor" is not an agent.
+function agentMessages(agent) {
+    return Object.prototype.hasOwnProperty.call(AGENTS, agent) ? AGENTS[agent] : AGENTS.claude
+}
+
 function stateMessage(profile) {
     if (!profile) {
         return "No such profile"
     }
-    var omp = profile.agent === "omp"
+    var messages = agentMessages(profile.agent)
     switch (profile.state) {
     case "ok":
         return (profile.bars && profile.bars.length) ? "" : "This plan reports no limits"
     case "absent":
-        return "Not signed in"
     case "expired":
-        return omp ? "Signed out - log in again in omp" : "Signed out - run claude to sign back in"
+    case "unread":
+        return messages[profile.state]
     case "uncapped":
         return "Not checked - needs systemd to cap omp's memory"
     default:
-        return omp ? "Couldn't get usage from omp" : "Couldn't reach the usage API"
+        return messages.error
     }
 }
 

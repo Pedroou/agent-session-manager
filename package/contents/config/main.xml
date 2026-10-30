@@ -194,6 +194,19 @@
       <label>Show plan usage for the Claude logins OMP has.</label>
       <default>true</default>
     </entry>
+    <!-- Whether Codex sessions are looked for at all. Off skips the /proc scan
+         that finding them takes, not just their rows. -->
+    <entry name="showCodex" type="Bool">
+      <label>List Codex sessions alongside Claude Code ones.</label>
+      <default>true</default>
+    </entry>
+    <!-- Whether Codex's login gets a plan usage row. Codex writes its plan
+         figures into its own transcripts, so this is a file read and no
+         request - but it has its own switch all the same, like OMP's. -->
+    <entry name="codexUsage" type="Bool">
+      <label>Show plan usage for the Codex login.</label>
+      <default>true</default>
+    </entry>
 
     <!-- Runtime state the popup owns, kept here so it survives a restart. -->
     <entry name="censorNames" type="Bool">

@@ -6,12 +6,12 @@
 
 ## Goal
 
-You run several Claude Code or OMP sessions at once, in different terminals and
-different projects. One of them is blocked on a permission prompt while you are
-reading another. The widget answers one question from the panel, without you
-alt-tabbing through terminals: **is any session waiting on me?** Opening it
-answers the follow-ups: which one, in which project, on which branch, for how
-long, and how much of the plan each account has left.
+You run several Claude Code, OMP or Codex sessions at once, in different
+terminals and different projects. One of them is blocked on a permission prompt
+while you are reading another. The widget answers one question from the panel,
+without you alt-tabbing through terminals: **is any session waiting on me?**
+Opening it answers the follow-ups: which one, in which project, on which branch,
+for how long, and how much of the plan each account has left.
 
 ## Non-goals
 
@@ -192,6 +192,84 @@ than misalign the list; nothing is retried and nothing is ever written. A run
 takes about 10 MB and a tenth of a CPU second, and still completes under a
 128 MB address-space limit, so none of the ceilings binds on a run that works.
 
+### Codex
+
+[Codex](https://github.com/openai/codex) (0.166, checked against its source and
+against live sessions) keeps a transcript per thread - a "rollout" at
+`<codex-home>/sessions/YYYY/MM/DD/rollout-<time>-<thread-id>.jsonl`, created
+when the first prompt is sent - but the process holding it open is often not
+the `codex` in your terminal. A plain `codex` runs its threads in a shared
+`codex app-server --listen unix://` that the first one starts, and that daemon
+keeps a thread's rollout open after its TUI has quit; a `codex` started with
+configuration flags runs its thread itself. So an open rollout is not a live
+session. The session is the TUI - that is what is ended, jumped to and timed -
+and `scripts/sessions/codex.bash` finds TUIs and threads separately and
+`codex.jq` pairs them.
+
+**Which processes.** `comm` is `codex` however it was installed (the npm wrapper
+execs into the native binary). The first positional argument places it: none,
+`resume`, `fork` or a prompt is a TUI; `app-server` listening on a unix socket
+is the daemon; an app-server without one is an editor's, holding only the
+editor's threads, and is not looked into; anything else (`exec`, `review`,
+`mcp-server`, …) is not interactive.
+
+**Which thread.** A rollout's first line says which app wrote it
+(`originator: "codex-tui"`), whether it is a subagent's, its directory and when
+the thread began; anything not a TUI's own main thread is skipped there. Then,
+in order of how sure it is:
+
+1. `codex resume <id>` names its thread.
+2. A TUI holding rollouts itself runs those.
+3. A thread in the daemon belongs to the TUI in its directory that started
+   last before the thread began - a TUI creates its thread as it finishes
+   starting, measured within two seconds on a real one. A later `/new` in that
+   TUI is still its latest - unless a second TUI started in the same directory
+   since, which then claims it.
+4. A TUI that opened the resume picker takes an unclaimed thread in its
+   directory, since that thread began before it did.
+
+A thread nobody claims is one whose TUI has quit. Of several, a TUI shows the
+one written to last. The name is the newest entry for the thread in
+`<codex-home>/session_index.jsonl`, which Codex fills in on its own.
+
+**Which state.** The tail of the rollout, through the turn markers and the
+tool calls still waiting for output:
+
+| In the rollout | Shown as |
+|---|---|
+| `task_complete` with `error` set | **Error**, with `error.message` |
+| `task_complete`, or `turn_aborted` (Esc) | **Done** |
+| an open turn, a `request_user_input` call pending | **Waiting**, with the question |
+| a command call pending, and a child of the holder is running it | **Running**, with the command |
+| a command call pending with `require_escalated`, nothing started since, older than 1.5 s | **Waiting**: "approve: …" |
+| anything else in an open turn | **Working** |
+
+Codex never writes down an approval prompt - it is on Codex's own list of
+events not to persist - but it does write the call *before* asking, and only
+starts the command once it is allowed. So Waiting is read off a call that asked
+to leave the sandbox and has nothing running for it. The command is found by
+its argv: Codex runs `bash -c <command>`, or, sandboxed, bwrap around a script
+that ends `exec '/usr/bin/bash' -c '<command>'`, so the end of the child's last
+argument is compared with the call's `cmd`. Codex's own helpers
+(`codex-code-mode-host`) are not commands. A child's age comes from `/proc`
+uptime and a call's from the wall clock, so they are compared as durations and a
+boot time skewed by a suspend cannot tip the answer. Calls in "code mode" arrive
+as a script (`tools.exec_command({cmd: "…"})`), and the command is read from
+its string literal.
+
+**Which account.** The Codex home the rollout lives in: `~/.codex` is
+"Codex", resumed with a plain `codex resume <id>`; any other is "Codex
+<directory>", resumed through `CODEX_HOME`, Codex's own switch.
+
+**Off, and the ceilings when on.** **Show Codex sessions** (`showCodex`, default
+on) sends `AGENT_SESSIONS_CODEX=0`. On: 32 TUIs and 32 threads at most; a
+rollout's first line - which carries Codex's whole system prompt - is read to
+4 KiB, a child's argument to its last 8 KiB, and each tail to 128 KiB, so the
+one jq sees about 4 MiB at most. A daemon thread in a directory no TUI is in is
+never read past its first line. Measured with three sessions: about 85 ms on
+top of the rest, 15 ms of it the jq and most of the remainder forks. A jq that
+fails costs every Codex row for that refresh, as for the other agents.
+
 ### Plan usage
 
 The percentages behind Claude Code's own `/usage` come from one authenticated
@@ -235,7 +313,7 @@ omp [--profile <name>] usage --json --provider anthropic --no-extensions
 ```
 
 once for `~/.omp/agent` and once per `~/.omp/profiles/<name>/agent`, run from
-`/` so no project's settings apply. `scripts/omp-usage.jq` turns each
+`/` so no project's settings apply. `scripts/usage/omp.jq` turns each
 Anthropic account in the answer into a row: `reports[]` become `ok` rows,
 `accountsWithoutUsage[]` `error`, `disabledCredentials[]` `expired`. Limits map
 onto Claude Code's bar ids - `anthropic:5h` is `session`, `anthropic:7d` is
@@ -265,6 +343,20 @@ With nothing chosen, the footer and the panel strip follow the first account
 that has a reading rather than the first account: someone who has moved to OMP
 still has a signed-out `~/.claude` at the top of the list.
 
+#### Codex's login
+
+Codex needs no request at all: with every reply its plan's limits come back,
+and Codex writes them into that session's rollout as a `token_count` event's
+`rate_limits`. `scripts/usage/codex.bash` takes the newest - one `find` over
+`~/.codex/sessions`, the 8 most recently written rollouts at most, each read
+backwards with `tac | grep -m1` only as far as its last reading - and
+`usage/codex.jq` turns its `primary` and `secondary` windows into bars, named by
+their length so they share ids with Claude Code's: 300 minutes is `session`,
+10080 `weekly`, 43200 (the free plan's) `monthly`. A reading is only as fresh as
+the last reply, so a window whose reset time has passed since reads 0% with no
+reset time. No `auth.json` is `absent`; a login with no reading on disk yet is
+`unread`. `auth.json` is only checked for existence, never read.
+
 #### The footer's order
 
 Opened up, the footer lists accounts most recently shown first. There is no
@@ -292,8 +384,14 @@ package/
     scripts/sessions/claude.jq   # registry records + transcript heads → session records
     scripts/sessions/omp.bash    # OMP: process table + open transcripts → records
     scripts/sessions/omp.jq      # OMP transcript tails → session records
-    scripts/claude-usage         # bash: credentials + usage API → JSON
-    scripts/omp-usage.jq         # `omp usage --json` → usage profiles
+    scripts/sessions/codex.bash  # Codex: TUIs + app-server + open rollouts + children → stream
+    scripts/sessions/codex.jq    # pairs TUIs with threads; rollout tails → session records
+    scripts/agent-usage          # bash: runs each agent's usage collector → JSON
+    scripts/usage/claude.bash    # Claude Code: credentials + usage API → rows
+    scripts/usage/omp.bash       # OMP: `omp usage --json` in a capped scope → rows
+    scripts/usage/omp.jq         # omp's answer → rows
+    scripts/usage/codex.bash     # Codex: newest plan reading in its rollouts → row
+    scripts/usage/codex.jq       # that reading → bars
     code/sessions.js             # pure display logic, no Qt
     code/usage.js                # pure usage logic, no Qt
     ui/main.qml                  # PlasmoidItem: polling, state, colours
@@ -329,17 +427,22 @@ sessions come in. Each agent's own knowledge lives beside it in
 directories to read, which records are live, the two states worked out rather
 than read - and **`claude.jq`** turns those records and the head of each
 transcript into session records; **`omp.bash`** finds OMP's processes and their
-transcripts, and **`omp.jq`** owns what an OMP transcript means. The collector
+transcripts, and **`omp.jq`** owns what an OMP transcript means; **`codex.bash`**
+finds Codex's TUIs, its daemon and their rollouts, and **`codex.jq`** pairs
+them and reads the state. The collector
 prints one document and nothing else, which is also how it is tested -
 `test/test-collectors.fish` builds a throwaway `$HOME`, a throwaway `/proc`
 (`AGENT_SESSIONS_PROC`) and throwaway transcripts, and runs the real script
 against them.
 
-**`scripts/claude-usage`** owns the credentials and the API call, with
-`CLAUDE_USAGE_FIXTURE` standing in for the network under test, and asks omp
-for OMP's; **`scripts/omp-usage.jq`** owns what omp's answer means. The suite
-stands a fake `omp` and a fake `systemd-run` in for the real ones and checks
-the cap omp is started under.
+**`scripts/agent-usage`** is the same shape for plan usage: it runs
+`usage/<agent>.bash` for each agent, and `AGENT_USAGE_<AGENT>=0` leaves one out.
+**`usage/claude.bash`** owns the credentials and the API call, with
+`AGENT_USAGE_FIXTURE` standing in for the network under test; **`usage/omp.bash`**
+asks omp and **`usage/omp.jq`** owns what its answer means; **`usage/codex.bash`**
+and **`usage/codex.jq`** read Codex's own figures. The suite stands a fake
+`omp` and a fake `systemd-run` in for the real ones and checks the cap omp is
+started under.
 
 **`code/sessions.js`** and **`code/usage.js`** own presentation: relative ages,
 the summary sentence broken into colourable parts, which state dominates, the
@@ -360,8 +463,9 @@ sessions took a run from 25 ms to 90 ms.
 What passes between an agent's collector and the rest is one line of JSON per
 session, and it is the same for every agent: `agent`, `pid`, `procStart`,
 `sessionId`, `cwd`, `name`, `status`, `detail`, `kind`, `version`, `startedAt`,
-`statusUpdatedAt`, `model`, `contextTokens`, `profile`, `profileDir`,
-`profileDefault`, `repository` and `branch`, each described at the top of
+`statusUpdatedAt`, `model`, `contextTokens`, `contextWindow` (when the agent
+records one), `profile`, `profileDir`, `profileDefault`, `repository` and
+`branch`, each described at the top of
 `scripts/agent-sessions`. `status` is one of a closed set - Claude Code's
 registry words plus the two worked-out states, `waiting`, `error`, `running`,
 `busy`, `shell`, `idle` - so a new agent says what its session is doing in the
@@ -375,7 +479,8 @@ sessions are missing and nobody can tell, and never another agent's rows.
 
 Where agents differ after that, `code/sessions.js` looks it up in its `AGENTS`
 table, keyed by `agent`: the resume command, and whether the agent asks for the
-1M context window where it is optional. Adding an agent is a
+1M context window where it is optional. A window the agent recorded itself
+(Codex does) wins over the one the model implies. Adding an agent is a
 `scripts/sessions/<agent>.bash` that defines `__as_<agent>_collect`, its name
 in the list `agent-sessions` runs, and an entry in `AGENTS`;
 `AGENT_SESSIONS_<AGENT>=0` switches it off with no further code.
@@ -487,7 +592,7 @@ them. It stops when the user has turned animations off.
 
 ## Model and context
 
-Neither agent publishes how full a session's context is, but both write down
+No agent publishes how full a session's context is, but each writes down
 what is needed to work it out. Every reply in a transcript carries the model id
 and the token counts of the request that produced it, and a request's prompt -
 uncached, written to cache and read from cache together - is exactly what
@@ -500,15 +605,21 @@ session's own context: a subagent's (`isSidechain`), and the ones Claude Code
 writes itself for an API error (model `<synthetic>`). All sessions share one
 jq, `claude.jq`. For OMP, `omp.jq` already has the tail; the model is the last one
 named, by a reply or by a `/model` switch made since, and the tokens come from
-the last reply.
+the last reply. For Codex, `codex.jq` takes the model from the last
+`turn_context` and the tokens from the last `token_count` event's
+`last_token_usage` - the figure Codex's own status line uses.
 
-The window is the part neither records, so `Sessions.contextWindow` derives it
-from the model, the way both tools size it: Fable, Sonnet 5 and later, Haiku 5.5
-and Opus 4.7 and later have a native 1M window; Opus 4.6 and Sonnet 4.6 get 1M
-in OMP by default but in Claude Code only through a `[1m]` variant the
-transcript does not keep, so they read as 200K there - until a session holds
-more than 200K, which proves the variant. A model the widget does not know is
-named but gets no bar, rather than a percentage of a guess.
+Claude Code and OMP do not record the window, so `Sessions.contextWindow`
+derives it from the model, the way both tools size it: Fable, Sonnet 5 and
+later, Haiku 5.5 and Opus 4.7 and later have a native 1M window; Opus 4.6 and
+Sonnet 4.6 get 1M in OMP by default but in Claude Code only through a `[1m]`
+variant the transcript does not keep, so they read as 200K there - until a
+session holds more than 200K, which proves the variant. A model the widget does
+not know is named but gets no bar, rather than a percentage of a guess. Codex
+records its own (`model_context_window`), which `Sessions.sessionWindow`
+prefers - its models are not ones the widget could size from the id. Codex's
+status line counts the first 12K tokens as baseline and leaves them out of both
+sides, so its percentage can read a few points lower than the widget's.
 
 ## Jumping to a session
 
@@ -564,14 +675,14 @@ process group and a negative pid as a whole group, so `Sessions.endCommand`
 refuses anything but digits above 1; and a pid can be reused by the time the
 button is pressed, so the command re-reads the start time from
 `/proc/<pid>/stat` and signals only if it still equals the one the collector
-reported (`procStart`, which both agents now carry). A session without a known
+reported (`procStart`, which every agent carries). A session without a known
 start time has no end button.
 
 ## Error and empty states
 
 | Condition                          | Panel                     | Popup                                                    |
 |------------------------------------|---------------------------|-----------------------------------------------------------|
-| Nothing running                    | faint tick, no number     | "No sessions running" / "Open a terminal and run claude or omp to start one." |
+| Nothing running                    | faint tick, no number     | "No sessions running" / "Open a terminal and run claude, omp or codex to start one." |
 | Before the first result            | faint tick                | nothing - an empty list would be a guess, not an answer   |
 | Collector failed / unparseable     | tick in the error colour  | "Can't read the session list" + stderr                    |
 | A torn or malformed record         | unaffected                | that one record is skipped, the rest still listed         |
@@ -600,9 +711,10 @@ both a panel and a popup to configure, and the reason a single "General" page
 stopped working here.
 
 **General** - how often to check, the needs-attention highlight, the privacy
-toggle that blanks names and paths, and OMP's two switches: its sessions, and
-its plan usage. They sit here rather than with the accounts because OMP has no
-accounts to list - both are found on their own. Then, last and set apart, one
+toggle that blanks names and paths, and two switches each for OMP and Codex:
+their sessions, and their plan usage. They sit here rather than with the
+accounts because neither has accounts to list - both are found on their own.
+Then, last and set apart, one
 button that resets every page. Plasma's applet dialog has no Defaults button of
 its own, so the widget provides it; a control that throws away every setting
 belongs at the end of the first page rather than at the top competing with the
@@ -661,6 +773,13 @@ All of it resets from one button, at the foot of the General page.
   documentation, but `tool_execution_start` and the title slot are core
   bookkeeping rather than an interface. A change there costs Running, Waiting or
   the name - never the session - and all of it is one jq file under test.
+- **So is Codex's rollout.** Its line shape and event names are Codex's
+  internals, checked against 0.166's source and against live sessions - where
+  they already differed from the source's own names (`task_started` and
+  `task_complete` on disk). Waiting rests on Codex writing a tool call before it
+  asks for approval, and pairing a TUI with a daemon's thread on when each
+  started. A change there costs a state or a pairing, all of it in one jq file
+  under test.
 - **`/proc` is Linux-only.** So is a Plasma panel, so this costs nothing here.
 - **Plasma caches applet QML.** After an upgrade the shell has to be restarted
   before the new code loads; `install.sh` says so rather than doing it.

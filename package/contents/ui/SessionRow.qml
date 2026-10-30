@@ -388,9 +388,7 @@ Item {
                 PlasmaComponents3.ToolTip.text: modelLine.percent < 0 ? ""
                     : i18n("%1 of %2 tokens of context",
                            Sessions.tokenCount(row.session.contextTokens),
-                           Sessions.tokenCount(Sessions.contextWindow(row.session.model,
-                                                                      row.session.agent,
-                                                                      row.session.contextTokens)))
+                           Sessions.tokenCount(Sessions.sessionWindow(row.session)))
                 PlasmaComponents3.ToolTip.visible: modelHover.hovered
                                                    && PlasmaComponents3.ToolTip.text !== ""
                 PlasmaComponents3.ToolTip.delay: Kirigami.Units.toolTipDelay

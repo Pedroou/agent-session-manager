@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Print each account's plan usage, as one JSON document: every configured Claude
+# Code account, every Anthropic login OMP has, and Codex's.
+#
+# Each agent has a collector of its own beside this script, in usage/:
+# <agent>.bash, with the jq program that reads that agent's answer where it needs
+# one. The collector defines __au_<agent>_collect, which works out the agent's
+# accounts and appends one row per account to __au_rows. This script owns only
+# what every agent shares: which agents run, in which order, and the document
+# they end up in.
+#
+# A row is one line of compact JSON:
+#
+#   id      what the widget remembers the account by: Claude Code's config
+#           directory, "omp:<agent dir>#<account>", "codex:<home>"
+#   group   for OMP and Codex, the directory the row came from; a failure that
+#           cannot say which accounts it would have listed is one error row
+#           whose id is the group's, and stands in for all of them
+#   agent   which tool holds the login: "claude", "omp", "codex"
+#   name    what to call it on screen
+#   state   ok, absent, expired, error, uncapped or unread; code/usage.js says
+#           what each one means for each agent
+#   bars    when ok, one per limit: {id, label, percent, severity, resetsAt,
+#           active}. Limits that measure the same thing share an id across
+#           agents - session, weekly - so a limit picked for one account reads
+#           the same on another
+#
+# How much each agent costs to ask differs a great deal - Claude Code's is one
+# HTTPS request per account, OMP's a 200 MB runtime held in a capped scope,
+# Codex's a few file reads - and is set out at the top of each collector. The
+# widget polls this every few minutes, never more.
+#
+# Environment:
+#   CLAUDE_PROFILES          JSON array of {name, dir}: the Claude Code accounts
+#                            to read, in order
+#   AGENT_USAGE_<AGENT>      0 to leave that agent out entirely - for OMP,
+#                            AGENT_USAGE_OMP=0: omp is not run at all. Anything
+#                            else, or unset, asks it.
+#   AGENT_USAGE_FIXTURE      read this file instead of calling Claude Code's
+#                            usage API (tests)
+#   AGENT_USAGE_OMP_BIN      the omp to run, instead of the one on $PATH (tests)
+#   AGENT_USAGE_SYSTEMD_RUN  the systemd-run to cap it with (tests)
+#
+# Exit status is 0 whenever a document was printed, including "nothing to show".
+
+# An unmatched glob expands to nothing, rather than to itself.
+shopt -s nullglob
+
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Agent Session Manager needs jq. Install the jq package and it will pick it up on the next refresh." >&2
+    exit 1
+fi
+
+__au_lib=${BASH_SOURCE[0]%/*}
+[[ $__au_lib == "${BASH_SOURCE[0]}" ]] && __au_lib=.
+__au_lib=$__au_lib/usage
+
+__au_rows=() # one row per line, from every collector
+
+# In this order, which is also the order the footer lists accounts in before it
+# has a history of its own to go by.
+for __au_agent in claude omp codex; do
+    __au_switch=AGENT_USAGE_${__au_agent^^}
+    [[ ${!__au_switch} == 0 ]] && continue
+    # shellcheck source=/dev/null
+    source "$__au_lib/$__au_agent.bash" || continue
+    "__au_${__au_agent}_collect"
+done
+
+# Seconds with three zeros appended is a millisecond stamp, as in agent-sessions.
+now=$(date +%s)000
+printf '%s\n' "${__au_rows[@]}" | jq -s -c --argjson now "$now" '{fetchedAt: $now, profiles: .}'

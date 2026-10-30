@@ -117,7 +117,7 @@ for dir in $home/.claude $home/.claude-personal
 end
 
 # A plan-usage response, for anything driving the real collector rather than
-# setting widget.usage from the stage. $CLAUDE_USAGE_FIXTURE makes claude-usage
+# setting widget.usage from the stage. $AGENT_USAGE_FIXTURE makes agent-usage
 # read this instead of calling Anthropic, so nothing here touches the network.
 jq -n '{limits: [
     {kind: "session",      percent: 61, severity: "", resets_at: null, is_active: true},

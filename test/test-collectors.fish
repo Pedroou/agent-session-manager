@@ -1,9 +1,9 @@
 #!/usr/bin/env fish
-# Sandbox tests for the panel widget's collectors (plasmoid .../scripts/agent-sessions and claude-usage).
+# Sandbox tests for the panel widget's collectors (plasmoid .../scripts/agent-sessions and agent-usage).
 # MUST run with: fish --no-config
 set -g REPO (dirname (dirname (realpath (status filename))))
 set -g COLLECT $REPO/package/contents/scripts/agent-sessions
-set -g USAGE $REPO/package/contents/scripts/claude-usage
+set -g USAGE $REPO/package/contents/scripts/agent-usage
 set -g ROOT (mktemp -d)/sandbox
 set -g PASS 0
 set -g FAIL 0
@@ -444,7 +444,7 @@ echo
 
 echo "═══ Task 22: plan usage reports why a profile has no bars ═══"
 setup
-set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
+set -gx AGENT_USAGE_FIXTURE $ROOT/usage.json
 echo '{"limits": []}' >$ROOT/usage.json
 # work has no credentials at all; personal has a token that expired in 2001.
 jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 1000000000000}}' >$ROOT/.claude-personal/.credentials.json
@@ -456,7 +456,7 @@ check "neither offers any bars" "0 0" (echo $out | jq -r '[.profiles[].bars | le
 echo
 echo "═══ Task 23: the limits the plan reports become the bars on offer ═══"
 setup
-set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
+set -gx AGENT_USAGE_FIXTURE $ROOT/usage.json
 jq -n '{limits: [
         {kind: "session", percent: 11, severity: "normal", resets_at: "2026-09-08T16:30:00Z", is_active: true},
         {kind: "weekly_all", percent: 5, severity: "normal", resets_at: "2026-09-10T16:00:00Z", is_active: false},
@@ -477,18 +477,18 @@ check "and which one is actually counting" true \
 echo
 echo "═══ Task 24: a plan that reports no limits is not an error ═══"
 setup
-set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
+set -gx AGENT_USAGE_FIXTURE $ROOT/usage.json
 echo '{"limits": []}' >$ROOT/usage.json
 jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude/.credentials.json
 set out ($USAGE)
 check "still ok, just empty" ok (echo $out | jq -r '.profiles[] | select(.name=="work") | .state')
 check "no bars" 0 (echo $out | jq -r '.profiles[] | select(.name=="work") | .bars | length')
-set -e CLAUDE_USAGE_FIXTURE
+set -e AGENT_USAGE_FIXTURE
 
 echo
 echo "═══ Task 25: a failed request is an error, not an empty plan ═══"
 setup
-set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
+set -gx AGENT_USAGE_FIXTURE $ROOT/usage.json
 jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude/.credentials.json
 # What the API actually returns when it rate-limits you. It parses cleanly and
 # has no `limits` key, so without a type check it read as "this plan has no
@@ -500,7 +500,7 @@ check "and offers no bars" 0 (echo $out | jq -r '.profiles[] | select(.name=="wo
 echo '{"limits": []}' >$ROOT/usage.json
 set out ($USAGE)
 check "a real but empty limits array is still ok" ok (echo $out | jq -r '.profiles[] | select(.name=="work") | .state')
-set -e CLAUDE_USAGE_FIXTURE
+set -e AGENT_USAGE_FIXTURE
 
 echo
 echo "═══ Task 26: the accounts read are the ones configured ═══"
@@ -573,7 +573,7 @@ mkdir -p $ROOT/.claude-side
 jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude/.credentials.json
 jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude-side/.credentials.json
 echo '{"limits": [{"kind": "session", "percent": 7, "is_active": true}]}' >$ROOT/usage.json
-set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
+set -gx AGENT_USAGE_FIXTURE $ROOT/usage.json
 set -gx CLAUDE_PROFILES '[{"name":"day job","dir":"'$ROOT'/.claude"},{"name":"side project","dir":"'$ROOT'/.claude-side"}]'
 set out ($USAGE)
 check "one entry per configured account" 2 (echo $out | jq '.profiles | length')
@@ -582,7 +582,7 @@ check "one entry per configured account" 2 (echo $out | jq '.profiles | length')
 check "each is identified by its directory" "$ROOT/.claude $ROOT/.claude-side" (echo $out | jq -r '[.profiles[].id] | join(" ")')
 check "and carries the name it was given" "day job side project" (echo $out | jq -r '[.profiles[].name] | join(" ")')
 set -e CLAUDE_PROFILES
-set -e CLAUDE_USAGE_FIXTURE
+set -e AGENT_USAGE_FIXTURE
 
 echo
 echo "═══ Task 30: no accounts means no accounts ═══"
@@ -597,9 +597,9 @@ set out (collect)
 check "no sessions are reported" 0 (echo $out | jq '.sessions | length')
 check "and no accounts" 0 (echo $out | jq '.profiles | length')
 echo '{"limits": [{"kind": "session", "percent": 7, "is_active": true}]}' >$ROOT/usage.json
-set -gx CLAUDE_USAGE_FIXTURE $ROOT/usage.json
+set -gx AGENT_USAGE_FIXTURE $ROOT/usage.json
 check "plan usage has nothing to report either" 0 ($USAGE | jq '.profiles | length')
-set -e CLAUDE_USAGE_FIXTURE
+set -e AGENT_USAGE_FIXTURE
 set -e CLAUDE_PROFILES
 
 echo
@@ -795,8 +795,8 @@ printf '%s\n' '#!/usr/bin/env -S fish --no-config' \
     'test -f '$ROOT'/report.json; or exit 1' \
     'cat '$ROOT'/report.json' >$ROOT/bin/omp
 chmod +x $ROOT/bin/systemd-run $ROOT/bin/omp
-set -gx CLAUDE_USAGE_SYSTEMD_RUN $ROOT/bin/systemd-run
-set -gx CLAUDE_USAGE_OMP_BIN $ROOT/bin/omp
+set -gx AGENT_USAGE_SYSTEMD_RUN $ROOT/bin/systemd-run
+set -gx AGENT_USAGE_OMP_BIN $ROOT/bin/omp
 jq -n '{reports: [
     {provider: "anthropic", metadata: {accountId: "acct-1", email: "a@example.com"},
      limits: [
@@ -843,9 +843,9 @@ echo '{"reports": [], "accountsWithoutUsage": [], "disabledCredentials": []}' >$
 check "no Anthropic login in OMP is no row" 0 ($USAGE | jq '.profiles | length')
 
 rm -f $ROOT/omp.log
-set -gx CLAUDE_USAGE_OMP 0
+set -gx AGENT_USAGE_OMP 0
 check "switched off, there is no OMP row" 0 ($USAGE | jq '.profiles | length')
-set -e CLAUDE_USAGE_OMP
+set -e AGENT_USAGE_OMP
 check "and omp is never started" no (test -e $ROOT/omp.log; and echo yes; or echo no)
 
 # No systemd user manager: nothing can hold omp to a ceiling, so it is not run.
@@ -853,8 +853,8 @@ rm $ROOT/run/systemd/private
 set out ($USAGE)
 check "without the cap, omp is not run" no (test -e $ROOT/omp.log; and echo yes; or echo no)
 check "and the row says why" uncapped (echo $out | jq -r '.profiles[0].state')
-set -e CLAUDE_USAGE_OMP_BIN
-set -e CLAUDE_USAGE_SYSTEMD_RUN
+set -e AGENT_USAGE_OMP_BIN
+set -e AGENT_USAGE_SYSTEMD_RUN
 set -e XDG_RUNTIME_DIR
 set -e CLAUDE_PROFILES
 
@@ -896,6 +896,308 @@ check "an OMP session names the model it switched to since" anthropic/claude-fab
     (echo $out | jq -r '.sessions[] | select(.pid==4380) | .model')
 check "and keeps the tokens of its last reply" 40305 \
     (echo $out | jq -r '.sessions[] | select(.pid==4380) | .contextTokens')
+
+echo
+echo "═══ Task 39: Codex's plan usage says whether there is anything to read ═══"
+setup
+set -gx CLAUDE_PROFILES '[]'
+check "no Codex home, no Codex row" 0 ($USAGE | jq '.profiles | length')
+mkdir -p $ROOT/.codex/sessions
+set out ($USAGE)
+check "a Codex home with no login is one row, not signed in" "codex:$ROOT/.codex codex Codex absent 0" \
+    (echo $out | jq -r '.profiles[] | "\(.id) \(.agent) \(.name) \(.state) \(.bars | length)"')
+echo '{}' >$ROOT/.codex/auth.json
+check "signed in, but no reply has brought a reading yet" "unread 0" \
+    ($USAGE | jq -r '.profiles[] | "\(.state) \(.bars | length)"')
+set -e CLAUDE_PROFILES
+
+# A transcript under sessions/<day>, written at `mtime`, holding the lines given.
+function codex_rollout -a day name mtime
+    mkdir -p $ROOT/.codex/sessions/$day
+    printf '%s\n' $argv[4..] >$ROOT/.codex/sessions/$day/rollout-$name.jsonl
+    touch -d $mtime $ROOT/.codex/sessions/$day/rollout-$name.jsonl
+end
+
+# The token_count event Codex writes with every reply, with the plan's two
+# windows as given (JSON, or null).
+function codex_limits -a primary secondary
+    jq -nc --argjson p $primary --argjson s $secondary '
+        {timestamp: "2026-10-30T20:23:24.560Z", type: "event_msg",
+         payload: {type: "token_count", info: {total_token_usage: {input_tokens: 1}},
+                   rate_limits: {limit_id: "codex", limit_name: null, primary: $p,
+                                 secondary: $s, credits: null, plan_type: "plus"}}}'
+end
+
+echo
+echo "═══ Task 40: Codex's bars come from the newest reading on disk ═══"
+setup
+set -gx CLAUDE_PROFILES '[]'
+mkdir -p $ROOT/.codex
+echo '{}' >$ROOT/.codex/auth.json
+set -l user (jq -nc '{type: "response_item", payload: {type: "message", role: "user",
+                      content: [{type: "input_text", text: "what is \"rate_limits\":{ for?"}]}}')
+# An older transcript, with a reading of its own that is out of date.
+codex_rollout 2026/10/29 old "2026-10-29 09:00" \
+    (codex_limits '{"used_percent": 99, "window_minutes": 43200, "resets_at": 4102444800}' null)
+# The newest one with a reading: its last reading wins over its first.
+codex_rollout 2026/10/30 current "2026-10-30 12:00" \
+    (codex_limits '{"used_percent": 90, "window_minutes": 300, "resets_at": 4102444800}' null) \
+    (codex_limits '{"used_percent": 12.4, "window_minutes": 300, "resets_at": 4102444800}' \
+        '{"used_percent": 57.6, "window_minutes": 10080, "resets_at": 4102448400}') \
+    $user
+# Newer still, but no reply yet, so nothing to read in it.
+codex_rollout 2026/10/30 fresh "2026-10-30 13:00" \
+    (jq -nc '{type: "session_meta", payload: {id: "fresh"}}') $user
+set out ($USAGE)
+check "signed in with a reading is ok" ok (echo $out | jq -r '.profiles[0].state')
+check "one bar per window, primary first, rounded, named as Claude Code's are" \
+    "session:Session:12 weekly:Weekly:58" \
+    (echo $out | jq -r '[.profiles[0].bars[] | "\(.id):\(.label):\(.percent)"] | join(" ")')
+check "and say when they reset" "2100-01-01T00:00:00Z 2100-01-01T01:00:00Z" \
+    (echo $out | jq -r '[.profiles[0].bars[].resetsAt] | join(" ")')
+
+# A month-long window at its limit, and a window whose reset has gone by since
+# the reading was taken: it has started over, whatever the reading said.
+codex_rollout 2026/10/31 later "2026-10-31 08:00" \
+    (codex_limits '{"used_percent": 100, "window_minutes": 43200, "resets_at": 4102444800}' \
+        '{"used_percent": 40, "window_minutes": 120, "resets_at": 1000000000}')
+set out ($USAGE)
+check "a monthly window, and one of any other length named by its hours" \
+    "monthly:Monthly window:120:2-hour" \
+    (echo $out | jq -r '[.profiles[0].bars[] | "\(.id):\(.label)"] | join(" ")')
+check "a window at its limit is the active one" "true false" \
+    (echo $out | jq -r '[.profiles[0].bars[].active] | join(" ")')
+check "a window that has reset since reads empty, with nothing to count down to" "0 null" \
+    (echo $out | jq -r '.profiles[0].bars[1] | "\(.percent) \(.resetsAt)"')
+codex_rollout 2026/11/01 days "2026-11-01 08:00" \
+    (codex_limits null '{"used_percent": 3, "window_minutes": 2880, "resets_at": 4102444800}')
+check "a missing window is no bar, and a long one is named by its days" "window:2880:2-day:3" \
+    ($USAGE | jq -r '[.profiles[0].bars[] | "\(.id):\(.label):\(.percent)"] | join(" ")')
+set -e CLAUDE_PROFILES
+
+echo
+echo "═══ Task 41: each usage row says which agent holds the login, and Codex can be left out ═══"
+setup
+set -gx AGENT_USAGE_FIXTURE $ROOT/usage.json
+echo '{"limits": [{"kind": "session", "percent": 7, "is_active": true}]}' >$ROOT/usage.json
+jq -n '{claudeAiOauth: {accessToken: "t", expiresAt: 99999999999999}}' >$ROOT/.claude/.credentials.json
+mkdir -p $ROOT/.codex
+echo '{}' >$ROOT/.codex/auth.json
+codex_rollout 2026/10/30 one "2026-10-30 12:00" \
+    (codex_limits '{"used_percent": 1, "window_minutes": 300, "resets_at": 4102444800}' null)
+check "Claude Code's accounts first, then Codex's" "claude:work claude:personal codex:Codex" \
+    ($USAGE | jq -r '[.profiles[] | "\(.agent):\(.name)"] | join(" ")')
+set -gx AGENT_USAGE_CODEX 0
+check "switched off, there is no Codex row" "claude claude" \
+    ($USAGE | jq -r '[.profiles[].agent] | join(" ")')
+set -e AGENT_USAGE_CODEX
+set -e AGENT_USAGE_FIXTURE
+
+echo
+echo "═══ Task 42: a Codex TUI is a session, and its thread says how it stands ═══"
+# Codex 0.166 as it lays itself out: a process whose comm is `codex`, and a
+# rollout per thread under ~/.codex/sessions/YYYY/MM/DD whose first line says
+# which app wrote it, where, and when the thread began. The clock is pinned:
+# boot at 1760000000, so a TUI at 100000 ticks started 2025-10-09T09:10:00Z, and
+# 1000 s of uptime for children to be aged against.
+function fake_codex -a pid starttime cwd
+    fake_proc $pid $starttime codex
+    echo codex >$AGENT_SESSIONS_PROC/$pid/comm
+    string join0 -- /usr/bin/codex $argv[4..-1] >$AGENT_SESSIONS_PROC/$pid/cmdline
+    mkdir -p $cwd $AGENT_SESSIONS_PROC/$pid/fd
+    ln -sfn $cwd $AGENT_SESSIONS_PROC/$pid/cwd
+end
+function codex_clock
+    echo "btime 1760000000" >$AGENT_SESSIONS_PROC/stat
+    echo "1000.00 4000.00" >$AGENT_SESSIONS_PROC/uptime
+end
+# A thread's rollout with its first line; prints the path. `extra` is merged
+# into the first line's payload, and `home` stands in for ~/.codex.
+function cx_thread -a id cwd created originator extra home
+    test -n "$originator"; or set originator codex-tui
+    test -n "$extra"; or set extra '{}'
+    test -n "$home"; or set home $ROOT/.codex
+    mkdir -p $home/sessions/2025/10/09
+    set -l file $home/sessions/2025/10/09/rollout-2025-10-09T06-10-01-$id.jsonl
+    jq -nc --arg id $id --arg cwd $cwd --arg t $created --arg o $originator --argjson x $extra '
+        {timestamp: $t, ordinal: 0, type: "session_meta",
+         payload: ({session_id: $id, id: $id, timestamp: $t, cwd: $cwd,
+                    originator: $o, cli_version: "0.166.0", source: "cli",
+                    thread_source: "user", model_provider: "openai"} + $x
+                   + {base_instructions: {text: "You are a coding agent."}})}' >$file
+    echo $file
+end
+# One rollout line, written `ago` seconds before now.
+function cx_line -a ago type payload
+    jq -nc --arg t (date -u -d @(math (date +%s) - $ago) +%FT%T.000Z) --arg ty $type \
+        --argjson p $payload '{timestamp: $t, type: $ty, payload: $p}'
+end
+# A tool call in code mode, the way gpt-5.6 makes them: a script calling tools.
+function cx_exec -a ago call_id code
+    cx_line $ago response_item (jq -nc --arg id $call_id --arg c $code \
+        '{type: "custom_tool_call", status: "completed", call_id: $id, name: "exec", input: $c}')
+end
+# A child of `holder` that started `age_ms` ago, with the argv given after comm.
+function cx_child -a holder kid age_ms comm
+    mkdir -p $AGENT_SESSIONS_PROC/$holder/task/$holder
+    echo -n "$kid " >>$AGENT_SESSIONS_PROC/$holder/task/$holder/children
+    fake_proc $kid (math "(1000000 - $age_ms) / 10") $comm
+    echo $comm >$AGENT_SESSIONS_PROC/$kid/comm
+    string join0 -- $argv[5..-1] >$AGENT_SESSIONS_PROC/$kid/cmdline
+end
+function cx_turn_done
+    cx_line 60 turn_context '{"cwd":"/x","model":"gpt-5.6-luna","approval_policy":"on-request"}'
+    cx_line 60 event_msg '{"type":"task_started","model_context_window":258400}'
+    cx_line 50 event_msg '{"type":"token_count","info":{"last_token_usage":{"total_tokens":16992},"model_context_window":258400},"rate_limits":null}'
+    cx_line 50 event_msg '{"type":"task_complete","last_agent_message":"Done.","error":null}'
+end
+setup
+codex_clock
+fake_codex 5001 100000 $ROOT/code/api
+set -l t1 01a10000-0000-7000-8000-000000000001
+set -l f (cx_thread $t1 $ROOT/code/api 2025-10-09T09:10:01.000Z)
+cx_turn_done >>$f
+ln -s $f $AGENT_SESSIONS_PROC/5001/fd/40
+# The session index is append-only: the newest name is the one in force.
+echo '{"id":"'$t1'","thread_name":"Explore the API","updated_at":"2025-10-09T09:11:00Z"}' >>$ROOT/.codex/session_index.jsonl
+echo '{"id":"'$t1'","thread_name":"Fix the login","updated_at":"2025-10-09T09:12:00Z"}' >>$ROOT/.codex/session_index.jsonl
+set out (collect)
+check "the TUI is the session" "5001 codex" (echo $out | jq -r '.sessions[] | "\(.pid) \(.agent)"')
+check "a finished turn is done" done (echo $out | jq -r '.sessions[0].state')
+check "named by the newest entry in the session index" "Fix the login" (echo $out | jq -r '.sessions[0].name')
+check "resumable by its thread id" $t1 (echo $out | jq -r '.sessions[0].sessionId')
+check "its model, and the context Codex itself measures" "gpt-5.6-luna 16992 258400" \
+    (echo $out | jq -r '.sessions[0] | "\(.model) \(.contextTokens) \(.contextWindow)"')
+check "the stock home, signalled by the TUI's own start" "Codex true 100000 0.166.0" \
+    (echo $out | jq -r '.sessions[0] | "\(.profile) \(.profileDefault) \(.procStart) \(.version)"')
+
+echo
+echo "═══ Task 43: what Codex is doing is read off its open tool calls ═══"
+setup
+codex_clock
+# One TUI per state, each running its own thread, all in one collect.
+function cx_session -a pid n
+    fake_codex $pid 100000 $ROOT/code/s$n
+    set -l file (cx_thread 01a10000-0000-7000-8000-00000000010$n $ROOT/code/s$n 2025-10-09T09:10:01.000Z)
+    ln -s $file $AGENT_SESSIONS_PROC/$pid/fd/40
+    cx_line 30 event_msg '{"type":"task_started","model_context_window":258400}' >>$file
+    echo $file
+end
+set f (cx_session 5101 1)
+cx_line 20 event_msg '{"type":"task_complete","error":{"message":"You\'ve hit your usage limit.","codex_error_info":"usage_limit_exceeded"}}' >>$f
+set f (cx_session 5102 2)
+cx_line 20 response_item '{"type":"custom_tool_call_output","call_id":"a","output":"aborted by user after 3.0s"}' >>$f
+cx_line 20 event_msg '{"type":"turn_aborted","reason":"interrupted","error":null}' >>$f
+set f (cx_session 5103 3)
+cx_line 20 response_item '{"type":"message","role":"assistant","content":[]}' >>$f
+set f (cx_session 5104 4)
+cx_exec 3 c4 'const r = await tools.exec_command({cmd: "sleep 20 && touch done.txt", workdir: "/tmp"});' >>$f
+cx_child 5104 51041 4000 codex-code-mode /usr/bin/codex-code-mode-host
+cx_child 5104 51042 2500 bash /usr/bin/bash -c "sleep 20 && touch done.txt"
+# Sandboxed: bwrap around a script that ends by exec-ing the command.
+set f (cx_session 5105 5)
+cx_line 4 response_item '{"type":"function_call","call_id":"c5","name":"exec_command","arguments":"{\\"cmd\\":\\"cargo test\\"}"}' >>$f
+cx_child 5105 51051 3500 bwrap bwrap --argv0 codex-linux-sandbox -- /usr/bin/codex --apply-seccomp-then-exec -- \
+    /usr/bin/bash -c "export PATH='/usr/bin'
+
+exec '/usr/bin/bash' -c 'cargo test'"
+# Asked to leave the sandbox, and nothing has started for it: an approval prompt.
+set f (cx_session 5106 6)
+cx_exec 5 c6 'const r = await tools.exec_command({cmd: "curl -sI https://example.com", sandbox_permissions: "require_escalated"});' >>$f
+cx_child 5106 51061 4000 codex-code-mode /usr/bin/codex-code-mode-host
+# The same, a moment after it was written: the command may yet start.
+set f (cx_session 5107 7)
+cx_exec 0 c7 'const r = await tools.exec_command({cmd: "curl -sI https://example.com", sandbox_permissions: "require_escalated"});' >>$f
+set f (cx_session 5108 8)
+cx_line 2 response_item '{"type":"function_call","call_id":"c8","name":"request_user_input","arguments":"{\\"questions\\":[{\\"question\\":\\"Which database?\\"}]}"}' >>$f
+set f (cx_session 5109 9)
+cx_exec 9 c9 'const r = await tools.exec_command({cmd: "ls"});' >>$f
+cx_line 8 response_item '{"type":"custom_tool_call_output","call_id":"c9","output":[]}' >>$f
+set -g cx_out (collect)
+function cx_state -a pid
+    echo $cx_out | jq -r --argjson p $pid '.sessions[] | select(.pid == $p) | "\(.state)|\(.detail)"'
+end
+check "a failed turn is an error, with Codex's message" "error|You've hit your usage limit." (cx_state 5101)
+check "Esc ends the turn: done" "done|" (cx_state 5102)
+check "an open turn with nothing pending is working" "working|" (cx_state 5103)
+check "a command a child is running is running, and named" "running|sleep 20 && touch done.txt" (cx_state 5104)
+check "a sandboxed one is found through its wrapper" "running|cargo test" (cx_state 5105)
+check "an escalation nothing has started for is waiting on you" \
+    "waiting|approve: curl -sI https://example.com" (cx_state 5106)
+check "but not in the moment before it starts" "working|" (cx_state 5107)
+check "a question for you is waiting, and asked" "waiting|Which database?" (cx_state 5108)
+check "an answered call is not pending" "working|" (cx_state 5109)
+
+echo
+echo "═══ Task 44: threads in Codex's shared app-server go to the TUI that made them ═══"
+setup
+codex_clock
+# The daemon runs threads for every plain `codex`, and keeps one open after its
+# TUI quits. Two TUIs in one directory, started 09:10 and 09:20, and one
+# resuming an older thread by id.
+fake_codex 5200 50000 $ROOT app-server --listen unix://
+fake_codex 5201 100000 $ROOT/code/shared
+fake_codex 5202 160000 $ROOT/code/shared
+fake_codex 5203 200000 $ROOT/code/shared resume 01a10000-0000-7000-8000-000000000205
+fake_codex 5204 200000 $ROOT/code/shared exec "summarise the repo"
+set -l n 1
+for spec in 201:09:10:01 202:09:20:02 203:09:05:00 205:08:00:00
+    set -l parts (string split -m1 : $spec)
+    set f (cx_thread 01a10000-0000-7000-8000-000000000$parts[1] $ROOT/code/shared 2025-10-09T$parts[2].000Z)
+    cx_turn_done >>$f
+    ln -s $f $AGENT_SESSIONS_PROC/5200/fd/4$n
+    set n (math $n + 1)
+end
+# A bare `codex resume` opens the picker, so its thread began long before it -
+# but it is the only claim on that directory's thread.
+fake_codex 5205 200000 $ROOT/code/older resume
+set f (cx_thread 01a10000-0000-7000-8000-000000000206 $ROOT/code/older 2025-10-08T17:00:00.000Z)
+cx_turn_done >>$f
+ln -s $f $AGENT_SESSIONS_PROC/5200/fd/49
+set out (collect)
+check "each TUI has its own thread; the quit TUI's and `codex exec` show nothing" \
+    "5201:201 5202:202 5203:205 5205:206" \
+    (echo $out | jq -r '[.sessions[] | select(.agent == "codex") | "\(.pid):\(.sessionId[-3:])"] | sort | join(" ")')
+
+echo
+echo "═══ Task 45: only a terminal's own thread is a Codex session ═══"
+setup
+codex_clock
+# An editor's app-server thread, and a subagent's rollout held beside its
+# parent's, newer than it.
+fake_codex 5300 50000 $ROOT app-server --analytics-default-enabled
+fake_codex 5301 100000 $ROOT/code/x
+set f (cx_thread 01a10000-0000-7000-8000-000000000300 $ROOT/code/x 2025-10-09T09:10:01.000Z codex_vscode)
+cx_turn_done >>$f
+ln -s $f $AGENT_SESSIONS_PROC/5300/fd/40
+set f (cx_thread 01a10000-0000-7000-8000-000000000301 $ROOT/code/x 2025-10-09T09:10:01.000Z)
+cx_turn_done >>$f
+ln -s $f $AGENT_SESSIONS_PROC/5301/fd/40
+set f (cx_thread 01a10000-0000-7000-8000-000000000302 $ROOT/code/x 2025-10-09T09:12:00.000Z codex-tui \
+    '{"parent_thread_id":"01a10000-0000-7000-8000-000000000301","thread_source":"subagent"}')
+cx_line 1 event_msg '{"type":"task_started"}' >>$f
+ln -s $f $AGENT_SESSIONS_PROC/5301/fd/41
+record work 4500 busy claude-one /home/u/a
+fake_proc 4500 450000
+set out (collect)
+check "the TUI shows its own thread, not the editor's or a subagent's" "5301:301:done" \
+    (echo $out | jq -r '[.sessions[] | select(.agent == "codex") | "\(.pid):\(.sessionId[-3:]):\(.state)"] | join(" ")')
+set -gx AGENT_SESSIONS_CODEX 0
+set out (collect)
+set -e AGENT_SESSIONS_CODEX
+check "switched off, no Codex session is reported" "4500" (echo $out | jq -r '[.sessions[].pid] | join(" ")')
+
+echo
+echo "═══ Task 46: another Codex home is its own account ═══"
+setup
+codex_clock
+fake_codex 5401 100000 $ROOT/code/y
+set f (cx_thread 01a10000-0000-7000-8000-000000000401 $ROOT/code/y 2025-10-09T09:10:01.000Z codex-tui '{}' $ROOT/.codex-work)
+cx_turn_done >>$f
+ln -s $f $AGENT_SESSIONS_PROC/5401/fd/40
+set out (collect)
+check "named for its directory, and not the stock one" "Codex codex-work false $ROOT/.codex-work" \
+    (echo $out | jq -r '.sessions[0] | "\(.profile) \(.profileDefault) \(.profileDir)"')
 
 echo
 echo "═══ Tripwire: the real session registry was untouched ═══"

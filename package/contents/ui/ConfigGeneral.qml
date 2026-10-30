@@ -54,6 +54,8 @@ KCM.SimpleKCM {
     property string cfg_profileSearchPath: "~"
     property alias cfg_showOmp: showOmp.checked
     property alias cfg_ompUsage: ompUsage.checked
+    property alias cfg_showCodex: showCodex.checked
+    property alias cfg_codexUsage: codexUsage.checked
     function resetToDefaults() {
         interval.value = 5
         attention.checked = true
@@ -96,6 +98,8 @@ KCM.SimpleKCM {
         page.cfg_profileSearchPath = "~"
         showOmp.checked = true
         ompUsage.checked = true
+        showCodex.checked = true
+        codexUsage.checked = true
         // The account list is deliberately not in here. It is the only setting
         // a person builds by hand rather than picks, and putting it one stray
         // click away from gone is not worth the tidiness.
@@ -182,6 +186,40 @@ KCM.SimpleKCM {
             font: Kirigami.Theme.smallFont
             color: Kirigami.Theme.disabledTextColor
             text: i18n("Asks omp itself, with omp usage, whenever plan usage refreshes - so the widget never reads OMP's logins. omp runs held to 512 MB and 15 seconds, and only where systemd can enforce that.")
+        }
+
+        // Codex, like OMP, is found from the running processes, and its login
+        // is the one in ~/.codex - so here too the only choices are whether to
+        // look at all.
+        Item {
+            Kirigami.FormData.isSection: true
+        }
+
+        QQC2.CheckBox {
+            id: showCodex
+            Kirigami.FormData.label: i18n("Codex:")
+            text: i18n("Show Codex sessions")
+        }
+
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            color: Kirigami.Theme.disabledTextColor
+            text: i18n("Finds every running codex and reads the transcript it, or the Codex app-server it runs on, has open. Off, none of that runs.")
+        }
+
+        QQC2.CheckBox {
+            id: codexUsage
+            text: i18n("Show plan usage for Codex")
+        }
+
+        QQC2.Label {
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+            wrapMode: Text.WordWrap
+            font: Kirigami.Theme.smallFont
+            color: Kirigami.Theme.disabledTextColor
+            text: i18n("Read from the plan figures Codex records in its own transcripts with every reply - no request is made.")
         }
 
         // Last, and set apart. Plasma's applet dialog has no Defaults button of its

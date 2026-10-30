@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Print one JSON document describing every agent session running right now:
-# Claude Code, across every configured profile, and OMP (oh-my-pi).
+# Claude Code, across every configured profile, OMP (oh-my-pi) and Codex.
 #
 # Each agent has a collector of its own beside this script, in sessions/:
 # <agent>.bash, with the jq program that reads that agent's files. The collector
@@ -11,7 +11,7 @@
 #
 # A session record is one line of compact JSON:
 #
-#   agent            which tool runs it: "claude", "omp"
+#   agent            which tool runs it: "claude", "omp", "codex"
 #   pid              its process
 #   procStart        that process's start time in clock ticks since boot, as a
 #                    string - field 22 of /proc/<pid>/stat. Ending a session and
@@ -29,6 +29,9 @@
 #   statusUpdatedAt  when its status last changed, epoch ms
 #   model            the model id; "" before its first reply
 #   contextTokens    the tokens its last request carried
+#   contextWindow    the window those count against, when the agent records
+#                    it; 0 leaves it to code/sessions.js to work out from the
+#                    model
 #   profile          the account it runs under, as shown on its row
 #   profileDir       that account's directory
 #   profileDefault   true when that directory is the agent's stock one
@@ -97,7 +100,7 @@ __as_profiles=() # the Claude Code accounts whose directory exists, by name
 
 # In this order, which is also the order sessions keep when everything they are
 # sorted by is equal.
-for __as_agent in claude omp; do
+for __as_agent in claude omp codex; do
     __as_switch=AGENT_SESSIONS_${__as_agent^^}
     [[ ${!__as_switch} == 0 ]] && continue
     # shellcheck source=/dev/null
@@ -159,6 +162,7 @@ printf '%s\n' "${__as_records[@]}" | jq -n \
             # widget turns those into a name and a share of the context window.
             model:           ($r.model // ""),
             contextTokens:   ($r.contextTokens // 0),
+            contextWindow:   ($r.contextWindow // 0),
             rank:            rank($state)
         }
     )

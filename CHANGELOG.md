@@ -4,6 +4,17 @@ Notable changes in each release, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/2.0.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Codex sessions, behind a switch, including when it is waiting for an approval,
+  and a usage bar for Codex's plan, read from Codex's own transcripts.
+
+### Fixed
+
+- A session record that only looks like JSON no longer empties the whole list.
+
 ## [1.2.1] - 2026-10-26
 
 ### Fixed
@@ -47,6 +58,7 @@ Notable changes in each release, newest first. The format follows
 - Plan usage for each account.
 - Any number of accounts, found on first run.
 
+[Unreleased]: https://github.com/Pedroou/agent-session-manager/compare/v1.2.1...HEAD
 [1.2.1]: https://github.com/Pedroou/agent-session-manager/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Pedroou/agent-session-manager/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Pedroou/agent-session-manager/compare/v1.0.0...v1.1.0

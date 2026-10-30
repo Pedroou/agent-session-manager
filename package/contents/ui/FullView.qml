@@ -187,7 +187,7 @@ Item {
             text: full.failure !== "" ? i18n("Can't read the session list")
                                       : i18n("No sessions running")
             explanation: full.failure !== "" ? full.failure
-                                             : i18n("Open a terminal and run claude or omp to start one.")
+                                             : i18n("Open a terminal and run claude, omp or codex to start one.")
         }
     }
 }

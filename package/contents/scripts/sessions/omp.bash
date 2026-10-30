@@ -27,20 +27,14 @@
 # a few kilobytes of it in memory. And every read has its errors discarded: a
 # process can exit between the glob and the read.
 #
-# This walks every process on the machine, so it sticks to glob tests: a bash
-# regex is compiled afresh each time it is matched.
+# The process table itself is walked once per run, for every agent that looks
+# for processes (__as_proc_table).
 __as_omp_pids() {
-    local entry pid comm a0 a1 a2
-    local -a by_pid=()
+    local pid comm a0 a1 a2
     __as_omp_pid_list=()
-    # Indexing a sparse array by pid sorts them numerically for free.
-    for entry in "$__as_proc"/[1-9]*; do
-        pid=${entry##*/}
-        [[ $pid == *[!0-9]* ]] || by_pid[pid]=1
-    done
-    for pid in "${!by_pid[@]}"; do
-        comm=
-        IFS= read -r -n 64 comm 2>/dev/null <"$__as_proc/$pid/comm"
+    __as_proc_table
+    for pid in "${!__as_comms[@]}"; do
+        comm=${__as_comms[pid]}
         case $comm in
         omp | bun | node) ;;
         *) continue ;;
@@ -148,16 +142,8 @@ __as_omp_collect() {
     local -a pids=("${__as_omp_pid_list[@]:0:32}")
     ((${#pids[@]} > 0)) || return 0
 
-    local btime='' line
     __as_resolve_all "${pids[@]}"
-    if [[ -r $__as_proc/stat ]]; then
-        while IFS= read -r line; do
-            if [[ $line == 'btime '* && $line =~ ^btime\ ([0-9]+)$ ]]; then
-                btime=${BASH_REMATCH[1]}
-                break
-            fi
-        done 2>/dev/null <"$__as_proc/stat"
-    fi
+    __as_boot_time
 
     local -a files=() meta=() records=()
     local pid ticks cwd file session_id file_dir sessions_dir agent_dir
@@ -197,10 +183,9 @@ __as_omp_collect() {
             label="OMP $omp_profile"
         fi
 
-        # Epoch milliseconds: /proc/stat has the boot time, and USER_HZ is 100
-        # on every architecture Linux exposes to userspace, so a tick is 10 ms.
-        started=0
-        [[ -n $btime ]] && started=$(((btime * 100 + ticks) * 10))
+        # When the process started, as epoch milliseconds.
+        __as_ticks_ms "$ticks"
+        started=$__as_ms
 
         __as_git "$cwd"
 

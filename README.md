@@ -25,7 +25,7 @@
 
 </div>
 
-Run several Claude Code or OMP sessions at once and the interesting question
+Run several Claude Code, OMP or Codex sessions at once and the interesting question
 stops being *what is the agent doing* and becomes **which one is waiting on me**.
 This puts the answer in your panel: one bar per session, coloured by what that
 session is doing, so a glance is enough.
@@ -34,10 +34,10 @@ session is doing, so a glance is enough.
 
 - **Live status for every session** - waiting on you, stopped on an error,
   running a command, working, in a shell, or done.
-- **Claude Code and [OMP](https://github.com/can1357/oh-my-pi)**, side by side
-  in one list.
+- **Claude Code, [OMP](https://github.com/can1357/oh-my-pi) and
+  [Codex](https://github.com/openai/codex)**, side by side in one list.
 - **No setup.** It reads what each tool already writes: Claude Code's session
-  registry, and the transcript every OMP session keeps open. No hooks, no
+  registry, and the transcripts OMP and Codex sessions keep open. No hooks, no
   wrappers, no config files to place.
 - **Jump to any session.** Click its name and its terminal comes forward - on
   the right tab in Konsole, the right pane in tmux.
@@ -45,11 +45,11 @@ session is doing, so a glance is enough.
   full its context window is.
 - **A popup with the details** - directory, git repository and branch, uptime,
   session id, pid. Click any value to copy it.
-- **Your plan usage**, per Claude Code account, for whichever limit you care
-  about.
+- **Your plan usage**, per Claude Code account and for OMP's and Codex's logins,
+  for whichever limit you care about.
 - **Multiple account profiles.** Claude Code switches accounts with
-  `CLAUDE_CONFIG_DIR`, which takes any path; OMP's named profiles are picked up
-  on their own.
+  `CLAUDE_CONFIG_DIR`, which takes any path; OMP's named profiles and a Codex
+  started with `CODEX_HOME` are picked up on their own.
 - **Native Plasma theming**, with every status colour overridable.
 
 ## Reading the panel
@@ -193,22 +193,27 @@ get reused. The same check guards ending a session or jumping to it.
 holds its transcript open, and the end of that transcript says whether it is
 working, running a command, asking you something, failed, or done.
 
+**Codex** writes the same kind of transcript, often from a shared app-server, so
+each terminal is paired with the thread it started; an approval prompt, which
+Codex never writes down, is read off a command that has not started.
+
 The **model and context** line comes from the same transcripts: each reply
 records its model and how many tokens its request carried, and the context
-window follows from the model. **Jumping** walks up from the session's process to
-the terminal that shows it, picks the tab through Konsole's D-Bus or the pane
-through tmux, and has KWin raise the window.
+window follows from the model, or is taken as Codex records it. **Jumping**
+walks up from the session's process to the terminal that shows it, picks the
+tab through Konsole's D-Bus or the pane through tmux, and has KWin raise the
+window.
 
-Everything with a decision in it lives in bash collectors - one per agent for
-sessions, one for plan usage - their jq programs, and two Qt-free JavaScript
+Everything with a decision in it lives in bash collectors - one per agent, for
+sessions and for plan usage - their jq programs, and two Qt-free JavaScript
 files, all tested without a running Plasma shell. The collector suite runs the
 real scripts against a throwaway `$HOME`, `/proc` and transcripts; it is written
 in fish, so running it needs fish - the widget does not:
 
 ```fish
-fish --no-config test/test-collectors.fish   # 140 assertions
-node --test test/sessions.test.js            # 40
-node --test test/usage.test.js               # 29
+fish --no-config test/test-collectors.fish   # 171 assertions
+node --test test/sessions.test.js            # 42
+node --test test/usage.test.js               # 31
 ```
 
 [`docs/design.md`](docs/design.md) is the full write-up - including what each
@@ -221,8 +226,10 @@ collector costs and how `omp` is kept in check - and
 limits using the login Claude Code already stores; the token goes to `curl`
 through stdin rather than argv, so it never appears in the process list, and it
 never reaches the widget's own code. For OMP's logins it runs `omp usage`, and
-OMP makes the same request with its own credentials. Nothing else leaves the
-machine, and the widget writes nothing to your Claude Code or OMP config
+OMP makes the same request with its own credentials. Codex's figures make no
+request at all: Codex writes its plan's limits into its own transcripts with
+every reply, and the widget reads the newest. Nothing else leaves the
+machine, and the widget writes nothing to your Claude Code, OMP or Codex config
 (`omp usage` keeps its own cache and refreshes its own tokens, as it does
 whenever you run it). There is no server, no telemetry and nothing to sign up
 for.
@@ -238,8 +245,9 @@ page](https://code.claude.com/docs/en/legal-and-compliance).
 
 It is on by default because it is half of what the widget is for, and it is one
 checkbox to turn off: **Configure… → Popup → Plan usage for each profile**, plus
-**Panel → Plan Usage Bar** for the strip under the bars. OMP's rows have their
-own: **General → Show plan usage for OMP's Claude logins**. The session list is
+**Panel → Plan Usage Bar** for the strip under the bars. OMP's and Codex's rows
+have their own: **General → Show plan usage for OMP's Claude logins** and
+**General → Show plan usage for Codex**. The session list is
 unaffected either way - that half reads nothing but your own filesystem.
 
 ## Licence

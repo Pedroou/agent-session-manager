@@ -15,10 +15,11 @@
   pane holds a process; other terminals, and VS Code, get their window brought
   forward but stay on whichever tab they were showing. It needs KWin, which is
   what can raise a window on Wayland.
-- **The context window is inferred from the model.** Neither transcript
-  records it. Opus 4.6 and Sonnet 4.6 run at 200K in Claude Code unless you chose
-  their `[1m]` variant, which the transcript does not say, so a 1M session on
-  one of them reads against 200K until it passes 200K. A session started with
+- **The context window is inferred from the model** for Claude Code and OMP,
+  whose transcripts do not record it (Codex's does). Opus 4.6 and Sonnet 4.6
+  run at 200K in Claude Code unless you chose their `[1m]` variant, which the
+  transcript does not say, so a 1M session on one of them reads against 200K
+  until it passes 200K. A session started with
   `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` reads against 1M. A model the widget does
   not know gets its name shown but no bar.
 - **Accounts are found, not watched.** The Accounts page searches when you ask
@@ -46,6 +47,13 @@
 - **Which OMP login a session is spending is not shown.** OMP can pool several
   Claude accounts and pick one per request, and its transcripts record only a
   hash of the account. The usage rows are per login, not per session.
+- **Codex's approval prompts are inferred, not read.** Codex never writes the
+  prompt down. A command it asked to run outside the sandbox that has not
+  started 1.5 s later reads as **Waiting**, so one merely slow to start can for
+  a moment; any other approval, a patch's included, reads as **Working**.
+- **Codex sessions appear with their first prompt, and only in a terminal.**
+  Codex creates the transcript then; VS Code's Codex has no terminal to jump to
+  or end.
 
 None of these are oversights. Each is a place where the thing the widget wants to
 know is not observable from outside the process, and guessing would have been

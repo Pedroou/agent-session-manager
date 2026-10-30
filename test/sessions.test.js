@@ -280,6 +280,18 @@ test("an OMP transcript kept outside the agent directory resumes by its path", (
                  + "omp --resume '/home/u/my sessions/2026-10-15T17-07-38-372Z_01a14088-a104.jsonl'")
 })
 
+// `codex resume <id>` looks in the Codex home it runs with, and $CODEX_HOME is
+// Codex's own way to point it at another - the stock ~/.codex needs nothing.
+test("a Codex session resumes with codex, in the home it came from", () => {
+    assert.equal(Sessions.resumeCommand(session({agent: "codex", sessionId: "01a18e78-3542",
+                     profileDir: "/home/u/.codex", profileDefault: true})),
+                 "cd /home/u/code/checkout-flow && codex resume 01a18e78-3542")
+    assert.equal(Sessions.resumeCommand(session({agent: "codex", sessionId: "01a18e78-3542",
+                     profileDir: "/home/u/codex homes/work", profileDefault: false})),
+                 "cd /home/u/code/checkout-flow && "
+                 + "CODEX_HOME='/home/u/codex homes/work' codex resume 01a18e78-3542")
+})
+
 // `agent` is text from a file. One the widget has no entry for is resumed the
 // way Claude Code's are - which also covers a name that happens to be a
 // property every object has, rather than calling something that is not there.
@@ -385,6 +397,17 @@ test("context fill is a percentage, or nothing when it cannot be known", () => {
     assert.equal(Sessions.contextPercent(session({model: "claude-opus-5-5", contextTokens: 0})), -1)
     assert.equal(Sessions.contextPercent(session({model: "gpt-5.1-codex", contextTokens: 9000})), -1)
     assert.equal(Sessions.contextPercent(session({})), -1)
+})
+
+// Codex writes its window down, and its models are not ones the widget could
+// size from the id - so a recorded window wins, and only its absence falls
+// back to the model.
+test("a window the agent recorded is the one context is measured against", () => {
+    const codex = session({agent: "codex", model: "gpt-5.6-luna", contextTokens: 64600,
+                           contextWindow: 258400})
+    assert.equal(Sessions.sessionWindow(codex), 258400)
+    assert.equal(Sessions.contextPercent(codex), 25)
+    assert.equal(Sessions.sessionWindow(session({model: "claude-sonnet-4-5", contextWindow: 0})), 200000)
 })
 
 test("token counts are short", () => {
