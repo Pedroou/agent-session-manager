@@ -4,7 +4,7 @@
 
 <h1>Agent Session Manager</h1>
 
-<p><b>See which of your Claude Code sessions needs you, from your Plasma panel.</b></p>
+<p><b>See which of your coding agent sessions needs you, from your Plasma panel.</b></p>
 
 <p>
 <img alt="KDE Plasma 6" src="https://img.shields.io/badge/KDE_Plasma-6-1d99f3?style=flat-square&logo=kde&logoColor=white&labelColor=2d333b">
